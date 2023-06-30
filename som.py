@@ -1,4 +1,4 @@
-"""_summary_
+"""
     References :
     Chaudhary, V., Bhatia, R. S., & Ahlawat, A. K. (2014). A novel self-organizing map (SOM) learning algorithm with nearest and farthest neurons. Alexandria Engineering Journal, 53(4), 827-831. https://doi.org/10.1016/j.aej.2014.09.007
 """
@@ -10,7 +10,7 @@ import random
 
 # Initiate random number for grid in matrix with dimension of x
 def random_initiate(dim: int, min_val:float, max_val:float):
-    x = [random.uniform(0,100) for i in range(dim)]
+    x = [random.uniform(min_val,max_val) for i in range(dim)]
     return x
 
 # Euclidean distance function
@@ -24,8 +24,24 @@ def euc_distance(x: np.array, y: np.array):
 # Self Organizing Matrix Class
 class SOM(): 
     def __init__(self, m: int, n: int, dim: int, method:str, max_iter: int, learning_rate:float, neighbour_rad: int) -> None:
+        """_summary_
+
+        Args:
+            m (int): _description_
+            n (int): _description_
+            dim (int): _description_
+            method (str): _description_
+            max_iter (int): _description_
+            learning_rate (float): _description_
+            neighbour_rad (int): _description_
+
+        Raises:
+            ValueError: _description_
+        """
         if learning_rate > 1:
             raise ValueError("Learning rate should be less than 1")
+        
+        # initiate all the attributes
         self.m = m
         self.n = n
         self.dim = dim
@@ -37,7 +53,8 @@ class SOM():
         self.method = method
         self.cur_neighbour_rad = neighbour_rad
         self.initial_neighbour_rad = neighbour_rad
-        self.neurons = None # self.initiate_neuron()
+        self.neurons = None 
+        self.initial_neurons = None
     
     def initiate_neuron(self, min_val:float, max_val:float):
         if self.method == "random" :
@@ -47,18 +64,20 @@ class SOM():
             return #!!!
         else:
             raise ValueError("There is no method named {}".format(self.method))
-        
-    def find_index(self, x:int):
-        return (math.floor(x/self.m), x%self.n)
-    
     
     def index_bmu(self, x: np.array):
         neurons = np.reshape(self.neurons, (-1, self.dim))
         min_index = np.argmin([euc_distance(neuron, x) for neuron in neurons])
-        return self.find_index(min_index)
+        return np.unravel_index(min_index, (self.m, self.n))
     
     def gaussian_neighbourhood(self, x1, y1, x2, y2):
-        return self.cur_learning_rate * math.exp(-1 * (euc_distance([x1, y1], [x2, y2])**2 / (2 * self.cur_neighbour_rad**2)))
+        lr = self.cur_learning_rate
+        nr = self.cur_neighbour_rad
+        dist = float(euc_distance([x1, y1], [x2,y2]))
+        exp = math.exp(-0.5 * ((dist/nr*dist/nr)))
+        val = np.float64(lr * exp)
+        
+        return val
     
     def update_neuron(self, x:np.array):
         """
@@ -82,15 +101,17 @@ class SOM():
                 cur_weight = self.neurons[cur_col][cur_row]
                 
                 # calculate the new weight
-                new_weight = cur_weight + self.gaussian_neighbourhood(col_bmu, row_bmu, cur_col, cur_row) * (x - cur_weight)
-                
-                # update the weight
-                self.neurons[cur_col][cur_row] = new_weight
+                h = self.gaussian_neighbourhood(col_bmu, row_bmu, cur_col, cur_row)
+                if h != 0:
+                    new_weight = cur_weight +  h * (x - cur_weight)
+                    # update the weight
+                    self.neurons[cur_col][cur_row] = new_weight
     
     def fit(self, X : np.ndarray, epoch : int, shuffle=True):
         if self._trained:
             raise SyntaxError("Cannot fit the model that have been trained")
         self.neurons = self.initiate_neuron(min_val= X.min(), max_val= X.max())
+        self.initial_neurons = self.neurons
         
         global_iter_counter = 0
         n_sample = X.shape[0]
