@@ -47,6 +47,47 @@ def euc_distance(x: np.array, y: np.array):
         dist = sum([(i2-i1)**2 for i1, i2 in zip(x, y)])**0.5
         return dist
 
+class kmeans():
+    def __init__(self, n_clusters: int):
+        self.n_clusters = n_clusters
+        self.centroids = None
+        self._trained = False
+    
+    def init_centroids(self, X: np.ndarray):
+        centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
+        self.centroids = centroids
+        return 
+    
+    def update_centroids(self, x:np.array):
+        # new_centroids = np.array([X[self.cluster_labels == i].mean(axis=0) for i in range(self.k)])
+        new_centroids = list()
+        
+        # find the distance of centroids for each data
+        centroids_distance = [euc_distance(x, i) for i in self.centroids]
+        
+        # find the closest centroid in self.centroids
+        closest_centroids_index = np.argmin(centroids_distance)
+        closest_centroids = self.centroids[closest_centroids_index]
+        
+        # update the closest centroids to the data
+        closest_centroids = [(i+j)/2 for i,j in zip(x,closest_centroids)]
+        
+        # update the centroid in model
+        self.centroids[closest_centroids_index] = closest_centroids
+        
+    
+    def fit(self, X: np.ndarray, epochs=3000, shuffle=True):
+        if self._trained:
+            raise SyntaxError("Cannot fit the model that have been trained")
+        
+        self.init_centroids(X)
+        for epoch in range(epochs):
+            if shuffle:
+                np.random.shuffle(X)
+            
+            for x in X:
+                self.update_centroids(x)
+
 # Self Organizing Matrix Class
 class SOM(): 
     def __init__(self, m: int, n: int, dim: int, initiate_method:str, max_iter: int, learning_rate:float, neighbour_rad: int) -> None:
@@ -85,7 +126,7 @@ class SOM():
         self.initial_neurons = None
         
     
-    def initiate_neuron(self, min_val:float, max_val:float):
+    def initiate_neuron(self, data: np.ndarray, min_val:float, max_val:float):
         """Initiate initial value of the neurons
 
         Args:
@@ -107,8 +148,12 @@ class SOM():
             # number of step = self.dim * self.m * self.n --> O(m * n * dim)
             return [[random_initiate(self.dim ,min_val=min_val, max_val=max_val) for j in range(self.m)] for i in range(self.n)]
         elif self.method == "kmeans":
-            raise ValueError("Sorry, {} have not available yet".format(self.method))
-            return #!!!
+            model = kmeans(n_clusters = (self.m * self.n))
+            model.fit(X = data)
+            neurons = model.centroids
+            neurons = np.sort(neurons, axis=0)
+            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
+            return neurons
         else:
             raise ValueError("There is no method named {}".format(self.method))
     
@@ -162,8 +207,8 @@ class SOM():
         row_bmu = bmu_index[1]
         
         # iterates through the matrix --> O(m * n * dim)
-        for cur_col in range(0, self.n):
-            for cur_row in range(0, self.m):
+        for cur_col in range(self.m):
+            for cur_row in range(self.n):
                 # initiate the current weight of the neurons
                 cur_weight = self.neurons[cur_col][cur_row]
                 
@@ -199,7 +244,7 @@ class SOM():
             raise ValueError("X.shape[1] should be the same as self.dim, but found {}".format(X.shape[1]))
         
         # initiate new neurons
-        self.neurons = self.initiate_neuron(min_val= X.min(), max_val= X.max()) # O(m * n * dim)
+        self.neurons = self.initiate_neuron(data=X, min_val= X.min(), max_val= X.max()) # O(m * n * dim)
         self.initial_neurons = self.neurons
         
         # initiate parameters
