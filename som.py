@@ -99,7 +99,7 @@ class kmeans():
                     new_c[i][j] = random.uniform(np.min(X),np.max(X))
         return new_c
     
-    def initiate_centroid_kmeansplus(self, X : np.ndarray):
+    def initiate_plus_plus(self, X : np.ndarray):
         centroids = list()
         centroids.append(random.choice(X))
         k = self.n_clusters
@@ -117,7 +117,7 @@ class kmeans():
             centroids = self.create_initial_centroid_kde(X)
             self.centroids = centroids
         elif self.method == "kmeans++" :
-            self.centroids = self.initiate_centroid_kmeansplus(X)
+            self.centroids = self.initiate_plus_plus(X)
         else:
             raise ValueError("There is no method named {}".format())
         return 
@@ -195,7 +195,15 @@ class SOM():
         self.neurons = None 
         self.initial_neurons = None
         
-        
+    def initiate_plus_plus(self, X : np.ndarray):
+        centroids = list()
+        centroids.append(random.choice(X))
+        k = self.n_clusters
+        for c in range(k-1):
+            dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X]
+            furthest_data = X[np.argmax(dist_arr)]
+            centroids.append(furthest_data)
+        return centroids
     
     def initiate_neuron(self, data: np.ndarray, min_val:float, max_val:float):
         """Initiate initial value of the neurons
@@ -237,6 +245,10 @@ class SOM():
             model.fit(X = data)
             neurons = model.centroids
             neurons = np.sort(neurons, axis=0)
+            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
+            return neurons
+        elif self.method == "SOM++" :
+            neurons = self.initiate_plus_plus(data)
             neurons = np.reshape(neurons, (self.m, self.n, self.dim))
             return neurons
         else:
