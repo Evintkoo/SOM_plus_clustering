@@ -176,7 +176,7 @@ class SOM():
         """
         if learning_rate > 1.76:
             raise ValueError("Learning rate should be less than 1.76")
-        method_type = ["random", "kmeans", "kde_kmeans", "kmeans++", "SOM++"]
+        method_type = ["random", "kde", "kmeans", "kde_kmeans", "kmeans++", "SOM++"]
         if initiate_method not in method_type:
             raise ValueError("There is no method called {}".format(initiate_method))
         
@@ -205,6 +205,17 @@ class SOM():
             centroids.append(furthest_data)
         return centroids
     
+    def create_initial_centroid_kde(self, X: np.ndarray, treshold = 0.001):
+        c = self.find_initial_centroid(X, treshold)
+        new_c = np.full(shape=(self.m * self.n,X.shape[1]), fill_value = None)
+        for i in range(self.m * self.n):
+            for j in range(X.shape[1]):
+                try: 
+                    new_c[i][j] = c[j][i]
+                except:
+                    new_c[i][j] = random.uniform(np.min(X),np.max(X))
+        return new_c
+    
     def initiate_neuron(self, data: np.ndarray, min_val:float, max_val:float):
         """Initiate initial value of the neurons
 
@@ -226,6 +237,10 @@ class SOM():
         if self.method == "random" :
             # number of step = self.dim * self.m * self.n --> O(m * n * dim)
             return [[random_initiate(self.dim ,min_val=min_val, max_val=max_val) for j in range(self.m)] for i in range(self.n)]
+        elif self.method == "kde" :
+            neurons = self.create_initial_centroid_kde(data)
+            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
+            return neurons
         elif self.method == "kmeans":
             model = kmeans(n_clusters = (self.m * self.n), method="random")
             model.fit(X = data)
