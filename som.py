@@ -205,6 +205,20 @@ class SOM():
             centroids.append(furthest_data)
         return centroids
     
+    def find_initial_centroid(self, X : np.ndarray, treshold:float):
+        X = np.transpose(X)
+        points = list()
+        for items in X:
+            xi = items
+            x = np.arange(min(xi),max(xi),.001)
+            y = [deriv(i, 0.001, xi) for i in x]
+            local_max = list()
+            for i in range(len(y)):
+                if y[i] > 0 and y[i+1] < 0:
+                    local_max.append(i*0.001+min(xi))
+            points.append(local_max)
+        return points
+    
     def create_initial_centroid_kde(self, X: np.ndarray, treshold = 0.001):
         c = self.find_initial_centroid(X, treshold)
         new_c = np.full(shape=(self.m * self.n,X.shape[1]), fill_value = None)
