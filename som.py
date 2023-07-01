@@ -198,7 +198,7 @@ class SOM():
     def initiate_plus_plus(self, X : np.ndarray):
         centroids = list()
         centroids.append(random.choice(X))
-        k = self.n_clusters
+        k = self.m * self.n
         for c in range(k-1):
             dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X]
             furthest_data = X[np.argmax(dist_arr)]
