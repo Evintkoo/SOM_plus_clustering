@@ -176,7 +176,7 @@ class SOM():
         """
         if learning_rate > 1.76:
             raise ValueError("Learning rate should be less than 1.76")
-        method_type = ["random", "kmeans", "kde_kmeans"]
+        method_type = ["random", "kmeans", "kde_kmeans", "kmeans++"]
         if initiate_method not in method_type:
             raise ValueError("There is no method called {}".format(initiate_method))
         
@@ -227,6 +227,13 @@ class SOM():
             return neurons
         elif self.method == "kde_kmeans":
             model = kmeans(n_clusters = (self.m * self.n), method="kde")
+            model.fit(X = data)
+            neurons = model.centroids
+            neurons = np.sort(neurons, axis=0)
+            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
+            return neurons
+        elif self.method == "kmeans++" :
+            model = kmeans(n_clusters = (self.m * self.n), method="kmeans++")
             model.fit(X = data)
             neurons = model.centroids
             neurons = np.sort(neurons, axis=0)
