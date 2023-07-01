@@ -138,6 +138,9 @@ class kmeans():
             
             for x in X:
                 self.update_centroids(x)
+    
+    def predict(self, X : np.ndarray):
+        return [np.argmin([euc_distance(x, centers) for centers in self.centroids]) for x in X]
 
 # Self Organizing Matrix Class
 class SOM(): 
