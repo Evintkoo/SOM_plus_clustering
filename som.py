@@ -292,8 +292,8 @@ class SOM():
         row_bmu = bmu_index[1]
         
         # iterates through the matrix --> O(m * n * dim)
-        for cur_col in range(self.m):
-            for cur_row in range(self.n):
+        for cur_col in range(len(self.neurons)):
+            for cur_row in range(len(self.neurons[0])):
                 # initiate the current weight of the neurons
                 cur_weight = self.neurons[cur_col][cur_row]
                 
