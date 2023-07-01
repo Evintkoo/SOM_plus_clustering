@@ -176,7 +176,7 @@ class SOM():
         """
         if learning_rate > 1.76:
             raise ValueError("Learning rate should be less than 1.76")
-        method_type = ["random", "kmeans", "kde_kmeans", "kmeans++"]
+        method_type = ["random", "kmeans", "kde_kmeans", "kmeans++", "SOM++"]
         if initiate_method not in method_type:
             raise ValueError("There is no method called {}".format(initiate_method))
         
