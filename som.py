@@ -46,16 +46,67 @@ def euc_distance(x: np.array, y: np.array):
     else :
         dist = sum([(i2-i1)**2 for i1, i2 in zip(x, y)])**0.5
         return dist
+    
+def gauss(x):
+    return math.exp(-0.5 * x * x)/math.sqrt(2*math.pi)
+
+def std_dev(x):
+    mean = np.mean(x)
+    sums = sum( [(i - mean)**2 for i in x])**0.5
+    return sums/len(x)
+
+def kernel_gauss(x, xi):
+    # silvermans bandwidth estimator
+    iqr = (np.percentile(xi, 75) - np.percentile(xi, 25))/1.34
+    h = iqr * (len(xi)**(-.2))
+    return sum([gauss((x-i)/h) for i in xi]) / (len(xi)*h)
+
+def deriv(x, h, xi):
+    f_x = kernel_gauss(x, xi)
+    f_xh = kernel_gauss(x+h, xi)
+    return (f_xh-f_x)/h
+
+def find_initial_centroid(X : np.ndarray, treshold:float):
+    X = np.transpose(X)
+    points = list()
+    for items in X:
+        xi = items
+        x = np.arange(min(xi),max(xi),.001)
+        y = [deriv(i, 0.001, xi) for i in x]
+        local_max = list()
+        for i in range(len(y)):
+            if y[i] > 0 and y[i+1] < 0:
+                local_max.append(i*0.001+min(xi))
+        points.append(local_max)
+    return points
+
+def create_initial_centroid(X: np.ndarray, treshold, k):
+    c = find_initial_centroid(X, treshold)
+    new_c = np.full(shape=(k,X.shape[1]), fill_value = None)
+    for i in range(k):
+        for j in range(X.shape[1]):
+            try: 
+                new_c[i][j] = c[j][i]
+            except:
+                new_c[i][j] = random.uniform(np.min(X),np.max(X))
+    return new_c
 
 class kmeans():
-    def __init__(self, n_clusters: int):
+    def __init__(self, n_clusters: int, method:str):
         self.n_clusters = n_clusters
         self.centroids = None
         self._trained = False
+        self.method = method
     
     def init_centroids(self, X: np.ndarray):
-        centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
-        self.centroids = centroids
+        if self.method == "random":
+            centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
+            self.centroids = centroids
+        elif self.method == "kde": 
+            centroids = create_initial_centroid(X, 0.001, self.n_clusters)
+            self.centroids = centroids
+        else:
+            raise ValueError("There is no method named {}".format())
         return 
     
     def update_centroids(self, x:np.array):
@@ -109,6 +160,9 @@ class SOM():
         """
         if learning_rate > 1:
             raise ValueError("Learning rate should be less than 1")
+        method_type = ["random", "kmeans", "kde_kmeans"]
+        if initiate_method not in method_type:
+            raise ValueError("There is no method called {}".format(initiate_method))
         
         # initiate all the attributes
         self.m = m
@@ -124,6 +178,7 @@ class SOM():
         self.initial_neighbour_rad = neighbour_rad
         self.neurons = None 
         self.initial_neurons = None
+        
         
     
     def initiate_neuron(self, data: np.ndarray, min_val:float, max_val:float):
@@ -148,7 +203,14 @@ class SOM():
             # number of step = self.dim * self.m * self.n --> O(m * n * dim)
             return [[random_initiate(self.dim ,min_val=min_val, max_val=max_val) for j in range(self.m)] for i in range(self.n)]
         elif self.method == "kmeans":
-            model = kmeans(n_clusters = (self.m * self.n))
+            model = kmeans(n_clusters = (self.m * self.n), method="random")
+            model.fit(X = data)
+            neurons = model.centroids
+            neurons = np.sort(neurons, axis=0)
+            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
+            return neurons
+        elif self.method == "kde_kmeans":
+            model = kmeans(n_clusters = (self.m * self.n), method="kde")
             model.fit(X = data)
             neurons = model.centroids
             neurons = np.sort(neurons, axis=0)
