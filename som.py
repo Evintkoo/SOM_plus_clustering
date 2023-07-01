@@ -4,7 +4,6 @@
 """
 
 import numpy as np
-import pandas as pd
 import math 
 import random
 
@@ -66,30 +65,7 @@ def deriv(x, h, xi):
     f_xh = kernel_gauss(x+h, xi)
     return (f_xh-f_x)/h
 
-def find_initial_centroid(X : np.ndarray, treshold:float):
-    X = np.transpose(X)
-    points = list()
-    for items in X:
-        xi = items
-        x = np.arange(min(xi),max(xi),.001)
-        y = [deriv(i, 0.001, xi) for i in x]
-        local_max = list()
-        for i in range(len(y)):
-            if y[i] > 0 and y[i+1] < 0:
-                local_max.append(i*0.001+min(xi))
-        points.append(local_max)
-    return points
 
-def create_initial_centroid(X: np.ndarray, treshold, k):
-    c = find_initial_centroid(X, treshold)
-    new_c = np.full(shape=(k,X.shape[1]), fill_value = None)
-    for i in range(k):
-        for j in range(X.shape[1]):
-            try: 
-                new_c[i][j] = c[j][i]
-            except:
-                new_c[i][j] = random.uniform(np.min(X),np.max(X))
-    return new_c
 
 class kmeans():
     def __init__(self, n_clusters: int, method:str):
@@ -98,13 +74,50 @@ class kmeans():
         self._trained = False
         self.method = method
     
+    def find_initial_centroid(self, X : np.ndarray, treshold:float):
+        X = np.transpose(X)
+        points = list()
+        for items in X:
+            xi = items
+            x = np.arange(min(xi),max(xi),.001)
+            y = [deriv(i, 0.001, xi) for i in x]
+            local_max = list()
+            for i in range(len(y)):
+                if y[i] > 0 and y[i+1] < 0:
+                    local_max.append(i*0.001+min(xi))
+            points.append(local_max)
+        return points
+
+    def create_initial_centroid_kde(self, X: np.ndarray, treshold = 0.001):
+        c = self.find_initial_centroid(X, treshold)
+        new_c = np.full(shape=(self.n_clusters,X.shape[1]), fill_value = None)
+        for i in range(self.n_clusters):
+            for j in range(X.shape[1]):
+                try: 
+                    new_c[i][j] = c[j][i]
+                except:
+                    new_c[i][j] = random.uniform(np.min(X),np.max(X))
+        return new_c
+    
+    def initiate_centroid_kmeansplus(self, X : np.ndarray):
+        centroids = list()
+        centroids.append(random.choice(X))
+        k = self.n_clusters
+        for c in range(k-1):
+            dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X]
+            furthest_data = X[np.argmax(dist_arr)]
+            centroids.append(furthest_data)
+        return centroids
+    
     def init_centroids(self, X: np.ndarray):
         if self.method == "random":
             centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
             self.centroids = centroids
         elif self.method == "kde": 
-            centroids = create_initial_centroid(X, 0.001, self.n_clusters)
+            centroids = self.create_initial_centroid_kde(X)
             self.centroids = centroids
+        elif self.method == "kmeans++" :
+            self.centroids = self.initiate_centroid_kmeansplus(X)
         else:
             raise ValueError("There is no method named {}".format())
         return 
