@@ -6,91 +6,83 @@
 import numpy as np
 import math 
 import random
-
-# Initiate random number for grid in matrix with dimension of x
-def random_initiate(dim: int, min_val:float, max_val:float):
-    """Initiate random number of value in range (min_val, max_val)
-
-    Args:
-        dim (int): dimension of the data
-        min_val (float): minimum value of data
-        max_val (float): maximum value of data
-
-    Returns:
-        np.array: array of randomly generated number
-        
-    Overall Complexity: O(dim)
-    """
-    x = [random.uniform(min_val,max_val) for i in range(dim)]
-    return x
-
-# Euclidean distance function
-def euc_distance(x: np.array, y: np.array):
-    """Calculate the euclidean distance of array x and y
-
-    Args:
-        x (np.array): array 1 input
-        y (np.array): array 2 input
-
-    Raises:
-        ValueError: length of x and y is different
-
-    Returns:
-        float(): euclidean distance of x and y
-    
-    Overall Time Complexity: O(dim)
-    """
-    if len(x) != len(y):
-        raise ValueError("input value has different length")
-    else :
-        dist = sum([(i2-i1)**2 for i1, i2 in zip(x, y)])**0.5
-        return dist
-    
-def gauss(x):
-    return math.exp(-0.5 * x * x)/math.sqrt(2*math.pi)
-
-def std_dev(x):
-    mean = np.mean(x)
-    sums = sum( [(i - mean)**2 for i in x])**0.5
-    return sums/len(x)
-
-def kernel_gauss(x, xi):
-    # silvermans bandwidth estimator
-    iqr = (np.percentile(xi, 75) - np.percentile(xi, 25))/1.34
-    h = iqr * (len(xi)**(-.2))
-    return sum([gauss((x-i)/h) for i in xi]) / (len(xi)*h)
-
-def deriv(x, h, xi):
-    f_x = kernel_gauss(x, xi)
-    f_xh = kernel_gauss(x+h, xi)
-    return (f_xh-f_x)/h
-
-
+from utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv
 
 class kmeans():
+    """
+    Kmeans class is consist of:
+        kmeans.n_clusters(int): Number of centroids.
+        kmeans.centroids(np.ndarray): Vector value of centroids with size of kmeans.n_clusters.
+        kmeans._trained(bool): If the kmeans.fit() have called, returns true, false otherwise
+        kmeans.method(str): Kmeans centroid initiation method.
+    """
     def __init__(self, n_clusters: int, method:str):
+        """
+        Intiate the main parameter of kmeans clustering.
+
+        Args:
+            n_clusters (int): Number of centroids for kmeans.
+            method (str): Initiation method for kmeans.
+        """
         self.n_clusters = n_clusters
         self.centroids = None
         self._trained = False
         self.method = method
     
-    def find_initial_centroid(self, X : np.ndarray, treshold:float):
+    def find_initial_centroid(self, X : np.ndarray, treshold:float) -> np.ndarray:
+        """
+        Find the initial centroid using kernel density function peaks.
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+            treshold (float): h value for deriv().
+
+        Returns:
+            np.ndarray: list of centroids based on the peak of each variable kernel density function.
+        """
+        # transpose the matrix of the data
         X = np.transpose(X)
+        
+        # create a list of centroids
         points = list()
         for items in X:
+            # initiate a data of a variable
             xi = items
-            x = np.arange(min(xi),max(xi),.001)
-            y = [deriv(i, 0.001, xi) for i in x]
+            
+            # create an array of points for x axis 
+            x = np.arange(min(xi),max(xi),treshold)
+            
+            # create a list of value of its derivative in range of data
+            y = [deriv(i, treshold, xi) for i in x]
+            
+            # build a list of local maximum from the derivative value
             local_max = list()
             for i in range(len(y)):
-                if y[i] > 0 and y[i+1] < 0:
+                if (y[i] > 0 and y[i+1] < 0) or (y[i] < 0 and y[i+1] > 0):
                     local_max.append(i*0.001+min(xi))
+                    
+            # append the list of local max of the variable
             points.append(local_max)
         return points
 
-    def create_initial_centroid_kde(self, X: np.ndarray, treshold = 0.001):
+    def create_initial_centroid_kde(self, X: np.ndarray, treshold = 0.001) -> np.ndarray:
+        """
+        Initiate the centroid of kmeans using kernel density function peak.
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+            treshold (float, optional): h value for deriv(). Defaults to 0.001.
+
+        Returns:
+            np.ndarray: list of centroid for kmeans clustering.
+        """
+        # create a list kde peak for all centroids
         c = self.find_initial_centroid(X, treshold)
+        
+        # fill the empty value with none
         new_c = np.full(shape=(self.n_clusters,X.shape[1]), fill_value = None)
+        
+        # change the None value to a randomized float value
         for i in range(self.n_clusters):
             for j in range(X.shape[1]):
                 try: 
@@ -99,17 +91,38 @@ class kmeans():
                     new_c[i][j] = random.uniform(np.min(X),np.max(X))
         return new_c
     
-    def initiate_plus_plus(self, X : np.ndarray):
+    def initiate_plus_plus(self, X : np.ndarray) -> np.ndarray:
+        """
+        Initiate the centroid value using kmeans++ algorithm
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+
+        Returns:
+            np.ndarray: list of centroid for kmeans clustering.
+        """
+        # initiate empty list of centroids
         centroids = list()
+        
+        # choose a random list of data
         centroids.append(random.choice(X))
+        
+        # initiate the number of k in kmeans
         k = self.n_clusters
+        
+        # iterate k-1 number to fill the list of centroids
         for c in range(k-1):
+            # find the minimum euclidean distance square from the all centroids in each data point
             dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X]
+            
+            # find the furthest vector of data 
             furthest_data = X[np.argmax(dist_arr)]
+            
+            # append the data to the list of centroid
             centroids.append(furthest_data)
         return centroids
     
-    def init_centroids(self, X: np.ndarray):
+    def init_centroids(self, X: np.ndarray) -> np.ndarray:
         if self.method == "random":
             centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
             self.centroids = centroids
