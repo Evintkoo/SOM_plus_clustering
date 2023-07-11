@@ -123,19 +123,42 @@ class kmeans():
         return centroids
     
     def init_centroids(self, X: np.ndarray) -> np.ndarray:
+        """
+        Initiate the centroids of kmeans clustering.
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+
+        Raises:
+            ValueError: If there is no method name self.method.
+
+        Returns:
+            np.ndarray: list of centroids for kmeans clustering (ready to train).
+        """
+        
         if self.method == "random":
+            # create a random value of data with length of self.n_clusters
             centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
             self.centroids = centroids
         elif self.method == "kde": 
+            # initiate centroids based on kernel density function peak 
             centroids = self.create_initial_centroid_kde(X)
             self.centroids = centroids
         elif self.method == "kmeans++" :
+            # initiate the centroids using a kmean++ algorithm
             self.centroids = self.initiate_plus_plus(X)
         else:
+            # raise an error if there is no such a method.
             raise ValueError("There is no method named {}".format())
         return 
     
     def update_centroids(self, x:np.array):
+        """
+        update the centroid value
+
+        Args:
+            x (np.array): input data
+        """
         # new_centroids = np.array([X[self.cluster_labels == i].mean(axis=0) for i in range(self.k)])
         new_centroids = list()
         
@@ -154,24 +177,58 @@ class kmeans():
         
     
     def fit(self, X: np.ndarray, epochs=3000, shuffle=True):
+        """
+        Train the kmeans model to find the best value of the centroid.
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+            epochs (int, optional): Number of training iteration. Defaults to 3000.
+            shuffle (bool, optional): Shuffle the data. Defaults to True.
+
+        Raises:
+            SyntaxError: Only could train the model if kmeans._trained is false (have not been trained)
+        """
         if self._trained:
             raise SyntaxError("Cannot fit the model that have been trained")
         
+        # initiate the centroid of kmeans model
         self.init_centroids(X)
+        
+        # iterates several times for trains the data
         for epoch in range(epochs):
+            
+            # shuffle the data
             if shuffle:
                 np.random.shuffle(X)
             
+            # iterates through data to update centroids
             for x in X:
                 self.update_centroids(x)
     
-    def predict(self, X : np.ndarray):
+    def predict(self, X : np.ndarray) -> np.array:
+        """
+        Predict the cluster number from the matrix of data.
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+
+        Returns:
+            np.array: list of cluster label.
+        """
         return [np.argmin([euc_distance(x, centers) for centers in self.centroids]) for x in X]
 
 # Self Organizing Matrix Class
 class SOM(): 
+    """
+    SOM class is consist of:
+        kmeans.n_clusters(int): Number of centroids.
+        kmeans.centroids(np.ndarray): Vector value of centroids with size of kmeans.n_clusters.
+        kmeans._trained(bool): If the kmeans.fit() have called, returns true, false otherwise
+        kmeans.method(str): Kmeans centroid initiation method.
+    """
     def __init__(self, m: int, n: int, dim: int, initiate_method:str, max_iter: int, learning_rate:float, neighbour_rad: int) -> None:
-        """_summary_
+        """
+        Initiate the main parameter of Self Organizing Matrix Clustering
 
         Args:
             m (int): _description_
