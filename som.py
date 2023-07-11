@@ -380,7 +380,7 @@ class SOM():
         Returns:
             np.ndarray: list of centroid for kmeans clustering.
         
-        Overall Time Complexity: O(N*C), C is max(1/treshold, dim)
+        Overall Time Complexity: O(N*C), C is max(1/treshold, m*n*dim)
         """
         
         # create a list kde peak for all centroids
@@ -412,18 +412,18 @@ class SOM():
             list(): list of neurons to be initiate in self.neurons and self.initial_neurons
             
         Overall Time Complexity:
-            self.method == "random": O(m * n * dim)
-            self.method == "kde":
-            self.method == "kmeans":
-            self.method == "kde_kmeans":
-            self.method == "kmeans++":
-            self.method == "SOM++":
+            self.method == "random": O(C), C is m*n*dim
+            self.method == "kde": O(N*C), C is max(1/treshold, m*n*dim)
+            self.method == "kmeans": O(N*C), C is max(1/treshold, m*n*dim)
+            self.method == "kde_kmeans": O(N*C), C is max(1/treshold, m*n*dim)
+            self.method == "kmeans++": O(N*C), C is k*k*dim
+            self.method == "SOM++": O(N*C), C is k*k*dim
         """
         if self.method == "random" :
             # number of step = self.dim * self.m * self.n --> O(m * n * dim)
             return [[random_initiate(self.dim ,min_val=min_val, max_val=max_val) for j in range(self.m)] for i in range(self.n)]
         elif self.method == "kde" :
-            neurons = self.create_initial_centroid_kde(data)
+            neurons = self.create_initial_centroid_kde(data) 
             neurons = np.reshape(neurons, (self.m, self.n, self.dim))
             return neurons
         elif self.method == "kmeans":
@@ -532,7 +532,7 @@ class SOM():
         Return:
             None: fit the neurons to the data
             
-        Overall Time Complexity: O(epoch * N * m * n * dim)
+        Overall Time Complexity: O(epoch * N * N * C) -> worst case
         """
         if self._trained:
             raise SyntaxError("Cannot fit the model that have been trained")
