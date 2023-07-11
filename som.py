@@ -221,10 +221,19 @@ class kmeans():
 class SOM(): 
     """
     SOM class is consist of:
-        kmeans.n_clusters(int): Number of centroids.
-        kmeans.centroids(np.ndarray): Vector value of centroids with size of kmeans.n_clusters.
-        kmeans._trained(bool): If the kmeans.fit() have called, returns true, false otherwise
-        kmeans.method(str): Kmeans centroid initiation method.
+        SOM.m (int): height of the matrix.
+        SOM.n (int): width of the matrix.
+        SOM.dim (int): input dimension of matrix.
+        SOM.max_iter (int): maximum number of iteration for each training iteration.
+        SOM.shape (tuple): shape of the matrix
+        SOM.cur_learning_rate (float): current learning rate of matrix (a(t))
+        SOM.initial_learning_rate (float): defined learning rate of SOM (a(0))
+        SOM._trained (bool): status of the model
+        SOM.method (str): neurons initiation method 
+        self.cur_neighbor_rad (float): current neighbor radius of SOM (g(t))
+        self.initial_neighbor_rad (float): initial neighbourhood radius of SOM (g(0))
+        SOM.neurons (np.ndarray): value of neurons in the matrix, none if SOM.fit() have not called yet
+        SOM.initial_neurons (np.ndarray): initial value of the neurons, none if SOM.fit() have not called yet
     """
     def __init__(self, m: int, n: int, dim: int, initiate_method:str, max_iter: int, learning_rate:float, neighbour_rad: int) -> None:
         """
@@ -255,7 +264,7 @@ class SOM():
         self.n = n
         self.dim = dim
         self.max_iter = max_iter
-        self.shape = (m,n)
+        self.shape = (m,n,dim)
         self.cur_learning_rate = learning_rate
         self.initial_learning_rate = learning_rate
         self._trained = False
