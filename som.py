@@ -23,6 +23,9 @@ class kmeans():
         Args:
             n_clusters (int): Number of centroids for kmeans.
             method (str): Initiation method for kmeans.
+            
+            
+        Overall Time Complexity: O(1)
         """
         self.n_clusters = n_clusters
         self.centroids = None
@@ -39,25 +42,29 @@ class kmeans():
 
         Returns:
             np.ndarray: list of centroids based on the peak of each variable kernel density function.
+            
+        Overall Time Complexity: O(N*C), C is 1/treshold
         """
         # transpose the matrix of the data
-        X = np.transpose(X)
+        X = np.transpose(X) # O(1)
         
         # create a list of centroids
-        points = list()
+        points = list() # O(1)
+        
+        # iterates through the data -> O(N*C)
         for items in X:
             # initiate a data of a variable
             xi = items
             
             # create an array of points for x axis 
-            x = np.arange(min(xi),max(xi),treshold)
+            x = np.arange(min(xi),max(xi),treshold) # O(C)
             
             # create a list of value of its derivative in range of data
-            y = [deriv(i, treshold, xi) for i in x]
+            y = [deriv(i, treshold, xi) for i in x] # O(C)
             
             # build a list of local maximum from the derivative value
             local_max = list()
-            for i in range(len(y)):
+            for i in range(len(y)): # O(C)
                 if (y[i] > 0 and y[i+1] < 0) or (y[i] < 0 and y[i+1] > 0):
                     local_max.append(i*0.001+min(xi))
                     
@@ -75,16 +82,18 @@ class kmeans():
 
         Returns:
             np.ndarray: list of centroid for kmeans clustering.
+            
+        Overall Time Complexity: O(N*C), C is max(1/treshold, dim)
         """
         # create a list kde peak for all centroids
-        c = self.find_initial_centroid(X, treshold)
+        c = self.find_initial_centroid(X, treshold) # O(N*C)
         
         # fill the empty value with none
-        new_c = np.full(shape=(self.n_clusters,X.shape[1]), fill_value = None)
+        new_c = np.full(shape=(self.n_clusters,X.shape[1]), fill_value = None) # O(N*dim)
         
-        # change the None value to a randomized float value
-        for i in range(self.n_clusters):
-            for j in range(X.shape[1]):
+        # change the None value to a randomized float value 
+        for i in range(self.n_clusters): # O(k*dim)
+            for j in range(X.shape[1]): # O(dim)
                 try: 
                     new_c[i][j] = c[j][i]
                 except:
@@ -100,23 +109,25 @@ class kmeans():
 
         Returns:
             np.ndarray: list of centroid for kmeans clustering.
+            
+        Overall Time Complexity: O(N*k*k*dim), k is number of cluster
         """
         # initiate empty list of centroids
-        centroids = list()
+        centroids = list() # O(1)
         
         # choose a random list of data
-        centroids.append(random.choice(X))
+        centroids.append(random.choice(X)) # O(1)
         
         # initiate the number of k in kmeans
-        k = self.n_clusters
+        k = self.n_clusters # O(1)
         
         # iterate k-1 number to fill the list of centroids
-        for c in range(k-1):
+        for c in range(k-1): # O(k)
             # find the minimum euclidean distance square from the all centroids in each data point
-            dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X]
+            dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X] # O(N*K*dim)
             
             # find the furthest vector of data 
-            furthest_data = X[np.argmax(dist_arr)]
+            furthest_data = X[np.argmax(dist_arr)] # O(N)
             
             # append the data to the list of centroid
             centroids.append(furthest_data)
@@ -134,6 +145,11 @@ class kmeans():
 
         Returns:
             np.ndarray: list of centroids for kmeans clustering (ready to train).
+        
+        Overall Time Complexity:
+            random: O(k*dim)
+            kde: O(N*C*dim)
+            kmeans++: O(N*k*k*dim)
         """
         
         if self.method == "random":
@@ -158,22 +174,24 @@ class kmeans():
 
         Args:
             x (np.array): input data
+        
+        Overall Time Complexity: O(k)
         """
         # new_centroids = np.array([X[self.cluster_labels == i].mean(axis=0) for i in range(self.k)])
-        new_centroids = list()
+        new_centroids = list() # O(1)
         
         # find the distance of centroids for each data
-        centroids_distance = [euc_distance(x, i) for i in self.centroids]
+        centroids_distance = [euc_distance(x, i) for i in self.centroids] # O(k)
         
         # find the closest centroid in self.centroids
-        closest_centroids_index = np.argmin(centroids_distance)
-        closest_centroids = self.centroids[closest_centroids_index]
+        closest_centroids_index = np.argmin(centroids_distance) # O(k)
+        closest_centroids = self.centroids[closest_centroids_index] # O(1)
         
         # update the closest centroids to the data
-        closest_centroids = [(i+j)/2 for i,j in zip(x,closest_centroids)]
+        closest_centroids = [(i+j)/2 for i,j in zip(x,closest_centroids)] # O(k)
         
         # update the centroid in model
-        self.centroids[closest_centroids_index] = closest_centroids
+        self.centroids[closest_centroids_index] = closest_centroids # O(1)
         
     
     def fit(self, X: np.ndarray, epochs=3000, shuffle=True):
@@ -187,23 +205,25 @@ class kmeans():
 
         Raises:
             SyntaxError: Only could train the model if kmeans._trained is false (have not been trained)
+        
+        Overall Time Complexity: O(N*C), C max (1/treshold, k*epoch)
         """
         if self._trained:
             raise SyntaxError("Cannot fit the model that have been trained")
         
         # initiate the centroid of kmeans model
-        self.init_centroids(X)
+        self.init_centroids(X) # O(N*C) assuming k << C
         
         # iterates several times for trains the data
-        for epoch in range(epochs):
+        for epoch in range(epochs): # O(epoch)
             
             # shuffle the data
             if shuffle:
-                np.random.shuffle(X)
+                np.random.shuffle(X) # O(N)
             
             # iterates through data to update centroids
-            for x in X:
-                self.update_centroids(x)
+            for x in X: # O(N*k)
+                self.update_centroids(x) # O(k)
     
     def predict(self, X : np.ndarray) -> np.array:
         """
@@ -214,6 +234,8 @@ class kmeans():
 
         Returns:
             np.array: list of cluster label.
+            
+        Overall Time Complplexity: O(N*k)
         """
         return [np.argmin([euc_distance(x, centers) for centers in self.centroids]) for x in X]
 
@@ -231,7 +253,7 @@ class SOM():
         SOM._trained (bool): status of the model
         SOM.method (str): neurons initiation method 
         self.cur_neighbor_rad (float): current neighbor radius of SOM (g(t))
-        self.initial_neighbor_rad (float): initial neighbourhood radius of SOM (g(0))
+        self.initial_neighbor_rad (float): initial neighbourhood radius of SOM (g(o))
         SOM.neurons (np.ndarray): value of neurons in the matrix, none if SOM.fit() have not called yet
         SOM.initial_neurons (np.ndarray): initial value of the neurons, none if SOM.fit() have not called yet
     """
@@ -275,32 +297,99 @@ class SOM():
         self.initial_neurons = None
         
     def initiate_plus_plus(self, X : np.ndarray):
+        """
+        Initiate the centroid value using kmeans++ algorithm
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+
+        Returns:
+            np.ndarray: list of centroid for kmeans clustering.
+        
+        Overall Time Complexity: O(N*k*k*dim), k is number of cluster
+        """
+        
+        # initiate empty list of centroids
         centroids = list()
+        
+        # choose a random  data
         centroids.append(random.choice(X))
+        
+        # initiate the number of choices
         k = self.m * self.n
+        
+        # iterate k-1 number to fill the list of neurons
         for c in range(k-1):
+            # find the minimum euclidean distance square from the all centroids in each data point
             dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X]
+            
+            # find the furthest vector of data 
             furthest_data = X[np.argmax(dist_arr)]
+            
+            # append the data to the list of centroid
             centroids.append(furthest_data)
         return centroids
-    
+        
     def find_initial_centroid(self, X : np.ndarray, treshold:float):
+        """
+        Find the initial centroid using kernel density function peaks.
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+            treshold (float): h value for deriv().
+
+        Returns:
+            np.ndarray: list of centroids based on the peak of each variable kernel density function.
+        
+        Overall Time Complexity: O(N*C), C is 1/treshold
+        """
+        
+        # transpose the matrix of the data
         X = np.transpose(X)
+        
+        # create a list of neurons
         points = list()
+        
+        # iterates through data
         for items in X:
+            # initiate a data of a variable
             xi = items
-            x = np.arange(min(xi),max(xi),.001)
-            y = [deriv(i, 0.001, xi) for i in x]
+            
+            # create an array of points for x axis 
+            x = np.arange(min(xi),max(xi),treshold)
+            
+            # create a list of value of its derivative in range of data
+            y = [deriv(i, treshold, xi) for i in x]
+            
+            # build a list of local maximum from the derivative value
             local_max = list()
             for i in range(len(y)):
-                if y[i] > 0 and y[i+1] < 0:
+                if (y[i] > 0 and y[i+1] < 0) or (y[i] < 0 and y[i+1] > 0):
                     local_max.append(i*0.001+min(xi))
             points.append(local_max)
         return points
     
     def create_initial_centroid_kde(self, X: np.ndarray, treshold = 0.001):
+        """
+        Initiate the centroid of kmeans using kernel density function peak.
+
+        Args:
+            X (np.ndarray): Matrix of input data.
+            treshold (float, optional): h value for deriv(). Defaults to 0.001.
+
+        Returns:
+            np.ndarray: list of centroid for kmeans clustering.
+        
+        Overall Time Complexity: O(N*C), C is max(1/treshold, dim)
+        """
+        
+        # create a list kde peak for all centroids
         c = self.find_initial_centroid(X, treshold)
+        
+        # fill the empty value with none and reshape the neuron size
         new_c = np.full(shape=(self.m * self.n,X.shape[1]), fill_value = None)
+        
+        # change the None value to a randomized float value
         for i in range(self.m * self.n):
             for j in range(X.shape[1]):
                 try: 
@@ -324,8 +413,11 @@ class SOM():
             
         Overall Time Complexity:
             self.method == "random": O(m * n * dim)
+            self.method == "kde":
             self.method == "kmeans":
+            self.method == "kde_kmeans":
             self.method == "kmeans++":
+            self.method == "SOM++":
         """
         if self.method == "random" :
             # number of step = self.dim * self.m * self.n --> O(m * n * dim)
