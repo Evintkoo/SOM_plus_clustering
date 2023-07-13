@@ -6,7 +6,7 @@
 import numpy as np
 import math 
 import random
-from utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv
+from SOM_plus_clustering.utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv
 
 class kmeans():
     """
