@@ -64,7 +64,7 @@ class kmeans():
             
             # build a list of local maximum from the derivative value
             local_max = list()
-            for i in range(len(y)): # O(C)
+            for i in range(len(y)-1): # O(C)
                 if (y[i] > 0 and y[i+1] < 0) or (y[i] < 0 and y[i+1] > 0):
                     local_max.append(i*0.001+min(xi))
                     
