@@ -149,7 +149,7 @@ class kmeans():
         Overall Time Complexity:
             random: O(k*dim)
             kde: O(N*C*dim)
-            kmeans++: O(N*k*k*dim)
+            kmeans++: O(N*k*dim)
         """
         
         if self.method == "random":
