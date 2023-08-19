@@ -6,7 +6,8 @@
 import numpy as np
 import math 
 import random
-from SOM_clustering.utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv
+from SOM_clustering.utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
+import sys
 
 class kmeans():
     """
@@ -257,7 +258,7 @@ class SOM():
         SOM.neurons (np.ndarray): value of neurons in the matrix, none if SOM.fit() have not called yet
         SOM.initial_neurons (np.ndarray): initial value of the neurons, none if SOM.fit() have not called yet
     """
-    def __init__(self, m: int, n: int, dim: int, initiate_method:str, max_iter: int, learning_rate:float, neighbour_rad: int) -> None:
+    def __init__(self, m: int, n: int, dim: int, initiate_method:str, learning_rate:float, neighbour_rad: int, max_iter=None) -> None:
         """
         Initiate the main parameter of Self Organizing Matrix Clustering
 
@@ -281,6 +282,8 @@ class SOM():
         if initiate_method not in method_type:
             raise ValueError("There is no method called {}".format(initiate_method))
         
+        if not max_iter:
+            max_iter = sys.maxsize
         # initiate all the attributes
         self.m = m
         self.n = n
@@ -553,6 +556,7 @@ class SOM():
         
         # iterates through epoch --> O(epoch * N * m * n * dim)
         for i in range(epoch):
+            render_bar(global_iter_counter, total_iteration, "Training")
             if global_iter_counter > self.max_iter :
                 break
             

@@ -1,6 +1,7 @@
 import numpy as np
 import math 
 import random
+import sys
 
 def random_initiate(dim: int, min_val:float, max_val:float):
     """Initiate random number of value in range (min_val, max_val)
@@ -111,3 +112,13 @@ def deriv(x: float, h: float, xi: np.array) -> float:
     f_x = kernel_gauss(x, xi) # O(N)
     f_xh = kernel_gauss(x+h, xi) # O(N)
     return (f_xh-f_x)/h 
+
+def render_bar(value, maxs, label):
+    n_bar = 40 #size of progress bar
+    j= value/maxs
+    sys.stdout.write('\r')
+    bar = '█' * int(n_bar * j)
+    bar = bar + '-' * int(n_bar * (1-j))
+
+    sys.stdout.write(f"{label.ljust(10)} | [{bar:{n_bar}s}] {int(100 * j)}% ")
+    sys.stdout.flush()
