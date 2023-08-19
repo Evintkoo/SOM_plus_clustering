@@ -6,7 +6,7 @@
 import numpy as np
 import math 
 import random
-from SOM_plus_clustering.utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv
+from SOM_clustering.utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv
 
 class kmeans():
     """
@@ -485,6 +485,8 @@ class SOM():
         """
         lr = self.cur_learning_rate
         nr = self.cur_neighbour_rad
+        if nr == 0:
+            nr = 1e-9
         dist = float(euc_distance([x1, y1], [x2,y2]))
         exp = math.exp(-0.5 * ((dist/nr*dist/nr)))
         val = np.float64(lr * exp)
