@@ -6,9 +6,8 @@
 import numpy as np
 import math 
 import random
-from utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
-import sys
-from kmeans import KMeans
+from modules.utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
+from modules.kmeans import KMeans
 
 # Self Organizing Matrix Class
 class SOM(): 

@@ -1,4 +1,4 @@
-from som import SOM
+from modules.som import SOM
 import pandas as pd
 import time
 

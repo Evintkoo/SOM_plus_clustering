@@ -1,8 +1,7 @@
 import numpy as np
 import math 
 import random
-from utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
-import sys
+from modules.utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
 
 class KMeans():
     """
