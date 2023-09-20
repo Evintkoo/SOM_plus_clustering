@@ -1,13 +1,13 @@
 from modules.som import SOM
+from modules.model_picker import model_picker
 import pandas as pd
 import time
 
+cur = time.time()
 df = pd.read_csv("data.csv", header=None).iloc[:, :-1]
 X = df.values
-methods = ["random", "kde", "kmeans", "kde_kmeans", "kmeans++", "SOM++"]
-for i in methods:
-    starttime = time.time()
-    model = SOM(2,2,X.shape[1],initiate_method=i, learning_rate=1, neighbour_rad=1)
-    pred = model.fit_predict(X=X, epoch=1, verbose=False)
-    print(i, "method executed in", time.time()-starttime)
-    
+picker = model_picker()
+picker.evaluate_initiate_method(X, 2,2,0.5,1,10)
+print(picker.pick_best_model())
+print(picker.model_evaluation)
+print(time.time() - cur)

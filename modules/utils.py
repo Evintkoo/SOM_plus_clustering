@@ -19,7 +19,7 @@ def random_initiate(dim: int, min_val:float, max_val:float):
     x = [random.uniform(min_val,max_val) for i in range(dim)]
     return x
 
-def euc_distance(x: np.array, y: np.array):
+def euc_distance(x: np.array, y: np.array) -> float:
     """Calculate the euclidean distance of array x and y
 
     Args:

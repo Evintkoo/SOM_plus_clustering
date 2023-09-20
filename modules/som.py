@@ -6,8 +6,9 @@
 import numpy as np
 import math 
 import random
-from modules.utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
-from modules.kmeans import KMeans
+from .utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
+from .kmeans import KMeans
+from .variables import METHOD_LIST
 
 # Self Organizing Matrix Class
 class SOM(): 
@@ -47,12 +48,11 @@ class SOM():
         """
         if learning_rate > 1.76:
             raise ValueError("Learning rate should be less than 1.76")
-        self.method_type = ["random", "kde", "kmeans", "kde_kmeans", "kmeans++", "SOM++"]
-        if initiate_method not in self.method_type:
+        if initiate_method not in METHOD_LIST:
             raise ValueError("There is no method called {}".format(initiate_method))
         
         if not max_iter:
-            max_iter = sys.maxsize
+            max_iter = np.inf
         # initiate all the attributes
         self.m = m
         self.n = n
@@ -391,6 +391,10 @@ class SOM():
         """
         self.fit(X = X, epoch = epoch, shuffle=shuffle, verbose=verbose) # O(epoch * N * m * n * dim)
         return self.predict(X=X) # O(N * m * n * dim)
+    
+    def evaluate(self):
+        dist_matrix = np.array([euc_distance(i,j) for j in self.neurons for i in self.neurons])
+        return np.sum(dist_matrix)
     
     @property
     def cluster_center_(self):
