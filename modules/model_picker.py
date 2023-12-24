@@ -2,7 +2,7 @@ import numpy as np
 import math
 from .som import SOM
 from .utils import euc_distance
-from .variables import METHOD_LIST
+from .variables import INITIATION_METHOD_LIST
 
 class model_picker:
     def __init__(self) -> None:
@@ -12,8 +12,8 @@ class model_picker:
     def pick_best_model(self):
         return self.models[np.argmax(self.model_evaluation)]
     
-    def evaluate_initiate_method(self, X:np.array, m:int, n:int, learning_rate:float, neighbor_rad:int, max_iter:int=None, epoch:int = 1):
-        for methods in METHOD_LIST:
+    def evaluate_initiate_method(self, X:np.array, m:int, n:int, learning_rate:float, neighbor_rad:int, distance_function, max_iter:int=None, epoch:int = 1):
+        for methods in INITIATION_METHOD_LIST:
             som_model = SOM(m=m,
                         n=n,
                         dim=X.shape[1],

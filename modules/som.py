@@ -6,9 +6,9 @@
 import numpy as np
 import math 
 import random
-from .utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
+from .utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar, cos_distance
 from .kmeans import KMeans
-from .variables import METHOD_LIST
+from .variables import INITIATION_METHOD_LIST, DISTANCE_METHOD_LIST
 
 # Self Organizing Matrix Class
 class SOM(): 
@@ -22,13 +22,13 @@ class SOM():
         SOM.cur_learning_rate (float): current learning rate of matrix (a(t))
         SOM.initial_learning_rate (float): defined learning rate of SOM (a(0))
         SOM._trained (bool): status of the model
-        SOM.method (str): neurons initiation method 
+        SOM.init_method (str): neurons initiation method 
         self.cur_neighbor_rad (float): current neighbor radius of SOM (g(t))
         self.initial_neighbor_rad (float): initial neighbourhood radius of SOM (g(o))
         SOM.neurons (np.ndarray): value of neurons in the matrix, none if SOM.fit() have not called yet
         SOM.initial_neurons (np.ndarray): initial value of the neurons, none if SOM.fit() have not called yet
     """
-    def __init__(self, m: int, n: int, dim: int, initiate_method:str, learning_rate:float, neighbour_rad: int, max_iter=None) -> None:
+    def __init__(self, m: int, n: int, dim: int, initiate_method:str, learning_rate:float, neighbour_rad: int, distance_function:str, max_iter=None) -> None:
         """
         Initiate the main parameter of Self Organizing Matrix Clustering
 
@@ -48,7 +48,9 @@ class SOM():
         """
         if learning_rate > 1.76:
             raise ValueError("Learning rate should be less than 1.76")
-        if initiate_method not in METHOD_LIST:
+        if initiate_method not in INITIATION_METHOD_LIST:
+            raise ValueError("There is no method called {}".format(initiate_method))
+        if distance_function not in DISTANCE_METHOD_LIST:
             raise ValueError("There is no method called {}".format(initiate_method))
         
         if not max_iter:
@@ -62,7 +64,8 @@ class SOM():
         self.cur_learning_rate = learning_rate
         self.initial_learning_rate = learning_rate
         self._trained = False
-        self.method = initiate_method
+        self.init_method = initiate_method
+        self.dist_func = distance_function
         self.cur_neighbour_rad = neighbour_rad
         self.initial_neighbour_rad = neighbour_rad
         self.neurons = None 
@@ -178,53 +181,53 @@ class SOM():
             max_val (float): maximum value of the data input
 
         Raises:
-            ValueError: There are no method named self.method or the method is not available yet
+            ValueError: There are no method named self.init_method or the method is not available yet
 
         Returns:
             list(): list of neurons to be initiate in self.neurons and self.initial_neurons
             
         Overall Time Complexity:
-            self.method == "random": O(C), C is m*n*dim
-            self.method == "kde": O(N*C), C is max(1/treshold, m*n*dim)
-            self.method == "kmeans": O(N*C), C is max(1/treshold, m*n*dim)
-            self.method == "kde_kmeans": O(N*C), C is max(1/treshold, m*n*dim)
-            self.method == "kmeans++": O(N*C), C is k*k*dim
-            self.method == "SOM++": O(N*C), C is k*k*dim
+            self.init_method == "random": O(C), C is m*n*dim
+            self.init_method == "kde": O(N*C), C is max(1/treshold, m*n*dim)
+            self.init_method == "kmeans": O(N*C), C is max(1/treshold, m*n*dim)
+            self.init_method == "kde_kmeans": O(N*C), C is max(1/treshold, m*n*dim)
+            self.init_method == "kmeans++": O(N*C), C is k*k*dim
+            self.init_method == "SOM++": O(N*C), C is k*k*dim
         """
-        if self.method == "random" :
+        if self.init_method == "random" :
             # number of step = self.dim * self.m * self.n --> O(m * n * dim)
             return [[random_initiate(self.dim ,min_val=min_val, max_val=max_val) for j in range(self.m)] for i in range(self.n)]
-        elif self.method == "kde" :
+        elif self.init_method == "kde" :
             neurons = self.create_initial_centroid_kde(data) 
             neurons = np.reshape(neurons, (self.m, self.n, self.dim))
             return neurons
-        elif self.method == "kmeans":
+        elif self.init_method == "kmeans":
             model = KMeans(n_clusters = (self.m * self.n), method="random")
             model.fit(X = data)
             neurons = model.centroids
             neurons = np.sort(neurons, axis=0)
             neurons = np.reshape(neurons, (self.m, self.n, self.dim))
             return neurons
-        elif self.method == "kde_kmeans":
+        elif self.init_method == "kde_kmeans":
             model = KMeans(n_clusters = (self.m * self.n), method="kde")
             model.fit(X = data)
             neurons = model.centroids
             neurons = np.sort(neurons, axis=0)
             neurons = np.reshape(neurons, (self.m, self.n, self.dim))
             return neurons
-        elif self.method == "kmeans++" :
+        elif self.init_method == "kmeans++" :
             model = KMeans(n_clusters = (self.m * self.n), method="kmeans++")
             model.fit(X = data)
             neurons = model.centroids
             neurons = np.sort(neurons, axis=0)
             neurons = np.reshape(neurons, (self.m, self.n, self.dim))
             return neurons
-        elif self.method == "SOM++" :
+        elif self.init_method == "SOM++" :
             neurons = self.initiate_plus_plus(data)
             neurons = np.reshape(neurons, (self.m, self.n, self.dim))
             return neurons
         else:
-            raise ValueError("There is no method named {}".format(self.method))
+            raise ValueError("There is no method named {}".format(self.init_method))
     
     def index_bmu(self, x: np.array):
         """Find the index of best matching unit among all of neurons inside the matrix based on its euclidean distance
@@ -238,7 +241,11 @@ class SOM():
         Overall Time Complexity: O(m * n * dim)
         """
         neurons = np.reshape(self.neurons, (-1, self.dim)) # O(1)
-        min_index = np.argmin([euc_distance(neuron, x) for neuron in neurons]) # O(m * n * dim) 
+        if self.dist_func == "euclidean":
+            min_index = np.argmin([euc_distance(neuron, x) for neuron in neurons]) # O(m * n * dim) 
+        elif self.dist_func == "cosine":
+            min_index = np.argmin([cos_distance(neuron, x) for neuron in neurons]) # O(m * n * dim) 
+            
         return np.unravel_index(min_index, (self.m, self.n)) # O(1)
     
     def gaussian_neighbourhood(self, x1, y1, x2, y2):
@@ -285,6 +292,7 @@ class SOM():
                 
                 # calculate the new weight, update only if the weight is > 0
                 h = self.gaussian_neighbourhood(col_bmu, row_bmu, cur_col, cur_row)
+                # !!! CHANGE USE DEGREE IF USE COSINE
                 if h > 0:
                     new_weight = cur_weight +  h * (x - cur_weight)
                     # update the weight
@@ -392,8 +400,14 @@ class SOM():
         self.fit(X = X, epoch = epoch, shuffle=shuffle, verbose=verbose) # O(epoch * N * m * n * dim)
         return self.predict(X=X) # O(N * m * n * dim)
     
-    def evaluate(self):
-        dist_matrix = np.array([euc_distance(i,j) for j in self.neurons for i in self.neurons])
+    def evaluate(self, method:str):
+        if method not in DISTANCE_METHOD_LIST:
+            raise ValueError("There is no method called {}".format(initiate_method))
+        
+        if method == "euclidean":
+            dist_matrix = np.array([euc_distance(i,j) for j in self.neurons for i in self.neurons])
+        elif method == "cosine":
+            dist_matrix = np.array([cos_distance(i,j) for j in self.neurons for i in self.neurons])
         return np.sum(dist_matrix)
     
     @property

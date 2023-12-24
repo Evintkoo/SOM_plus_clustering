@@ -3,6 +3,15 @@ import math
 import random
 import sys
 
+def cos_distance(vector1, vector2):
+    if len(vector1) != len(vector2):
+        raise ValueError("input value has different length")
+    else:
+        mag_a = np.linalg.norm(vector1)
+        mag_b = np.linalg.norm(vector2)
+        d_cos = 1-mag_a*mag_b/(mag_a**2+mag_b**2)
+        return math.acos(d_cos)
+
 def random_initiate(dim: int, min_val:float, max_val:float):
     """Initiate random number of value in range (min_val, max_val)
 
