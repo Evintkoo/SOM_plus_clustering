@@ -36,10 +36,11 @@ class SOM():
             m (int): _description_
             n (int): _description_
             dim (int): _description_
-            method (str): _description_
+            initiate_method (str): _description_
             max_iter (int): _description_
             learning_rate (float): _description_
             neighbour_rad (int): _description_
+            distance_function (str): _description_
 
         Raises:
             ValueError: _description_
@@ -245,7 +246,7 @@ class SOM():
             min_index = np.argmin([euc_distance(neuron, x) for neuron in neurons]) # O(m * n * dim) 
         elif self.dist_func == "cosine":
             min_index = np.argmin([cos_distance(neuron, x) for neuron in neurons]) # O(m * n * dim) 
-            
+
         return np.unravel_index(min_index, (self.m, self.n)) # O(1)
     
     def gaussian_neighbourhood(self, x1, y1, x2, y2):
@@ -298,8 +299,8 @@ class SOM():
                         # new weight = cur weight + moving weight * distance
                         new_weight = cur_weight +  h * (x - cur_weight)
                     elif self.dist_func == "cosine":
-                        angle = h*cos_distance(x,cur_weight)
-                        new_weight = [math.cos(angle)*i for i in cur_weight]
+                        angle = cos_distance(x,cur_weight)
+                        new_weight = [i+j*h for i,j in zip([math.cos(angle)*i for i in cur_weight],cur_weight)]
                     # update the weight
                     self.neurons[cur_col][cur_row] = new_weight
     
@@ -410,9 +411,9 @@ class SOM():
             raise ValueError("There is no method called {}".format(initiate_method))
         
         if method == "euclidean":
-            dist_matrix = np.array([euc_distance(i,j) for j in self.neurons for i in self.neurons])
+            dist_matrix = np.array([euc_distance(i,j) for j in self.cluster_center_ for i in self.cluster_center_])
         elif method == "cosine":
-            dist_matrix = np.array([cos_distance(i,j) for j in self.neurons for i in self.neurons])
+            dist_matrix = np.array([cos_distance(i,j) for j in self.cluster_center_ for i in self.cluster_center_])
         return np.sum(dist_matrix)
     
     @property

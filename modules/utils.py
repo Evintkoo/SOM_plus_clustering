@@ -5,7 +5,7 @@ import sys
 
 def cos_distance(vector1, vector2):
     if len(vector1) != len(vector2):
-        raise ValueError("input value has different length")
+        raise ValueError("input value has different length,", len(vector1), "!=", len(vector2))
     else:
         mag_a = np.linalg.norm(vector1)
         mag_b = np.linalg.norm(vector2)
