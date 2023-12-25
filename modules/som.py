@@ -6,9 +6,10 @@
 import numpy as np
 import math 
 import random
-from .utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar, cos_distance
+from .utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, cos_distance
 from .kmeans import KMeans
 from .variables import INITIATION_METHOD_LIST, DISTANCE_METHOD_LIST
+from tqdm import tqdm
 
 # Self Organizing Matrix Class
 class SOM(): 
@@ -336,31 +337,53 @@ class SOM():
         total_iteration = min(epoch * n_sample, self.max_iter)
         
         # iterates through epoch --> O(epoch * N * m * n * dim)
-        for i in range(epoch):
-            if global_iter_counter > self.max_iter :
-                break
-            
-            # shuffle the data
-            if shuffle:
-                np.random.shuffle(X)
-            
-            # iterates through data --> O(N * m * n * dim)
-            for idx in X:
+        if verbose:
+            for i in tqdm(range(epoch)):
                 if global_iter_counter > self.max_iter :
                     break
-                input = idx
                 
-                # update the neurons --> O(m * n * dim)
-                self.update_neuron(input)
-                if verbose:
-                    render_bar(global_iter_counter, total_iteration, "Training")
+                # shuffle the data
+                if shuffle:
+                    np.random.shuffle(X)
                 
-                # update parameter and hyperparameters --> O(1)
-                global_iter_counter += 1
-                power = global_iter_counter/total_iteration
-                self.cur_learning_rate = self.initial_learning_rate**(1-power) * math.exp(-1 * global_iter_counter/self.initial_learning_rate)
-                self.cur_neighbour_rad = self.initial_neighbour_rad**(1-power) * math.exp(-1 * global_iter_counter/self.initial_neighbour_rad)
-        
+                # iterates through data --> O(N * m * n * dim)
+                for idx in X:
+                    if global_iter_counter > self.max_iter :
+                        break
+                    input = idx
+                    
+                    # update the neurons --> O(m * n * dim)
+                    self.update_neuron(input)
+                    
+                    # update parameter and hyperparameters --> O(1)
+                    global_iter_counter += 1
+                    power = global_iter_counter/total_iteration
+                    self.cur_learning_rate = self.initial_learning_rate**(1-power) * math.exp(-1 * global_iter_counter/self.initial_learning_rate)
+                    self.cur_neighbour_rad = self.initial_neighbour_rad**(1-power) * math.exp(-1 * global_iter_counter/self.initial_neighbour_rad)
+        else:
+            for i in range(epoch):
+                if global_iter_counter > self.max_iter :
+                    break
+                
+                # shuffle the data
+                if shuffle:
+                    np.random.shuffle(X)
+                
+                # iterates through data --> O(N * m * n * dim)
+                for idx in X:
+                    if global_iter_counter > self.max_iter :
+                        break
+                    input = idx
+                    
+                    # update the neurons --> O(m * n * dim)
+                    self.update_neuron(input)
+                    
+                    # update parameter and hyperparameters --> O(1)
+                    global_iter_counter += 1
+                    power = global_iter_counter/total_iteration
+                    self.cur_learning_rate = self.initial_learning_rate**(1-power) * math.exp(-1 * global_iter_counter/self.initial_learning_rate)
+                    self.cur_neighbour_rad = self.initial_neighbour_rad**(1-power) * math.exp(-1 * global_iter_counter/self.initial_neighbour_rad)
+            
         self._trained = True
         
         return 
