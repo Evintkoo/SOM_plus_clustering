@@ -6,9 +6,9 @@ import time
 cur = time.time()
 df = pd.read_csv("data.csv", header=None).iloc[:, :-1]
 X = df.values
-model1 = SOM(2,2,X.shape[1], "random", 0.1,0.1,"euclidean")
+model1 = SOM(2,2,X.shape[1], "kmeans++", 0.1,0.1,"euclidean")
 model1.fit_predict(X, 10)
-model2 = SOM(2,2,X.shape[1], "random", 0.1,0.1,"cosine")
+model2 = SOM(2,2,X.shape[1], "kmeans++", 0.1,0.1,"cosine")
 model2.fit_predict(X, 10)
 print()
 print(model1.cluster_center_)

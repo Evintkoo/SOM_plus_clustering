@@ -294,7 +294,12 @@ class SOM():
                 h = self.gaussian_neighbourhood(col_bmu, row_bmu, cur_col, cur_row)
                 # !!! CHANGE USE DEGREE IF USE COSINE
                 if h > 0:
-                    new_weight = cur_weight +  h * (x - cur_weight)
+                    if self.dist_func == "euclidean":
+                        # new weight = cur weight + moving weight * distance
+                        new_weight = cur_weight +  h * (x - cur_weight)
+                    elif self.dist_func == "cosine":
+                        angle = h*cos_distance(x,cur_weight)
+                        new_weight = [math.cos(angle)*i for i in cur_weight]
                     # update the weight
                     self.neurons[cur_col][cur_row] = new_weight
     
