@@ -447,3 +447,4 @@ class SOM():
             np.ndarray(): list of all neurons with shape (m*n, dim)
         """
         return np.reshape(self.neurons, (-1, self.dim))
+
