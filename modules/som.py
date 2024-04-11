@@ -6,7 +6,8 @@
 import numpy as np
 import math 
 import random
-from .utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, cos_distance
+from .utils import random_initiate, euc_distance, cos_distance
+from .kde_kernel import initiate_kde
 from .kmeans import KMeans
 from .variables import INITIATION_METHOD_LIST, DISTANCE_METHOD_LIST
 from tqdm import tqdm
@@ -106,74 +107,6 @@ class SOM():
             dist_sq = np.minimum(dist_sq, np.sum((X - centroids[-1])**2, axis=1))
 
         return np.array(centroids)
-        
-    def find_initial_centroid(self, X : np.ndarray, treshold:float):
-        """
-        Find the initial centroid using kernel density function peaks.
-
-        Args:
-            X (np.ndarray): Matrix of input data.
-            treshold (float): h value for deriv().
-
-        Returns:
-            np.ndarray: list of centroids based on the peak of each variable kernel density function.
-        
-        Overall Time Complexity: O(N*C), C is 1/treshold
-        """
-        
-        # transpose the matrix of the data
-        X = np.transpose(X)
-        
-        # create a list of neurons
-        points = list()
-        
-        # iterates through data
-        for items in X:
-            # initiate a data of a variable
-            xi = items
-            
-            # create an array of points for x axis 
-            x = np.arange(min(xi),max(xi),treshold)
-            
-            # create a list of value of its derivative in range of data
-            y = [deriv(i, treshold, xi) for i in x]
-            
-            # build a list of local maximum from the derivative value
-            local_max = list()
-            for i in range(len(y)-1):
-                if (y[i] > 0 and y[i+1] < 0) or (y[i] < 0 and y[i+1] > 0):
-                    local_max.append(i*0.001+min(xi))
-            points.append(local_max)
-        return points
-    
-    def create_initial_centroid_kde(self, X: np.ndarray, treshold = 0.001):
-        """
-        Initiate the centroid of kmeans using kernel density function peak.
-
-        Args:
-            X (np.ndarray): Matrix of input data.
-            treshold (float, optional): h value for deriv(). Defaults to 0.001.
-
-        Returns:
-            np.ndarray: list of centroid for kmeans clustering.
-        
-        Overall Time Complexity: O(N*C), C is max(1/treshold, m*n*dim)
-        """
-        
-        # create a list kde peak for all centroids
-        c = self.find_initial_centroid(X, treshold)
-        
-        # fill the empty value with none and reshape the neuron size
-        new_c = np.full(shape=(self.m * self.n,X.shape[1]), fill_value = None)
-        
-        # change the None value to a randomized float value
-        for i in range(self.m * self.n):
-            for j in range(X.shape[1]):
-                try: 
-                    new_c[i][j] = c[j][i]
-                except:
-                    new_c[i][j] = random.uniform(np.min(X),np.max(X))
-        return new_c
     
     def initiate_neuron(self, data: np.ndarray, min_val:float, max_val:float):
         """Initiate initial value of the neurons
@@ -200,7 +133,7 @@ class SOM():
             # number of step = self.dim * self.m * self.n --> O(m * n * dim)
             return [[random_initiate(self.dim ,min_val=min_val, max_val=max_val) for j in range(self.m)] for i in range(self.n)]
         elif self.init_method == "kde" :
-            neurons = self.create_initial_centroid_kde(data) 
+            neurons = initiate_kde(X=data, n_neurons=self.m*self.n)
             neurons = np.reshape(neurons, (self.m, self.n, self.dim))
             return neurons
         elif self.init_method == "kmeans":

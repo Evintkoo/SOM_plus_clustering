@@ -12,42 +12,41 @@ def cos_distance(vector1, vector2):
         d_cos = 1-mag_a*mag_b/(mag_a**2+mag_b**2)
         return math.acos(d_cos)
 
-def random_initiate(dim: int, min_val:float, max_val:float):
-    """Initiate random number of value in range (min_val, max_val)
+def random_initiate(dim: int, min_val: float, max_val: float) -> np.ndarray:
+    """
+    Initiate an array of random numbers in the range (min_val, max_val).
 
     Args:
-        dim (int): dimension of the data
-        min_val (float): minimum value of data
-        max_val (float): maximum value of data
+        dim (int): Dimension of the array.
+        min_val (float): Minimum value of the random numbers.
+        max_val (float): Maximum value of the random numbers.
 
     Returns:
-        np.array: array of randomly generated number
-        
-    Overall Complexity: O(dim)
+        np.ndarray: Array of randomly generated numbers.
+
+    Time Complexity: O(1)
+    Space Complexity: O(dim)
     """
-    x = [random.uniform(min_val,max_val) for i in range(dim)]
-    return x
+    return np.random.uniform(min_val, max_val, dim)
 
 def euc_distance(x: np.array, y: np.array) -> float:
-    """Calculate the euclidean distance of array x and y
+    """Calculate the Euclidean distance between arrays x and y.
 
     Args:
-        x (np.array): array 1 input
-        y (np.array): array 2 input
-
-    Raises:
-        ValueError: length of x and y is different
+        x (np.array): Input array 1.
+        y (np.array): Input array 2.
 
     Returns:
-        float(): euclidean distance of x and y
-    
-    Overall Time Complexity: O(dim)
+        float: Euclidean distance between x and y.
+
+    Raises:
+        ValueError: If the lengths of x and y are different.
+
+    Time Complexity: O(n), where n is the length of the input arrays.
     """
     if len(x) != len(y):
-        raise ValueError("input value has different length")
-    else :
-        dist = sum([(i2-i1)**2 for i1, i2 in zip(x, y)])**0.5
-        return dist
+        raise ValueError("Input arrays have different lengths.")
+    return np.sqrt(np.sum((x - y) ** 2))
     
 def gauss(x) -> float:
     """
