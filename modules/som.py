@@ -73,39 +73,39 @@ class SOM():
         self.neurons = None 
         self.initial_neurons = None
         
-    def initiate_plus_plus(self, X : np.ndarray):
+    def initiate_plus_plus(self, X: np.ndarray):
         """
         Initiate the centroid value using kmeans++ algorithm
-
         Args:
             X (np.ndarray): Matrix of input data.
-
         Returns:
             np.ndarray: list of centroid for kmeans clustering.
-        
-        Overall Time Complexity: O(N*k*k*dim), k is number of cluster
+
+        Overall Time Complexity: O(N*k*dim), k is number of cluster
         """
-        
+
         # initiate empty list of centroids
-        centroids = list()
-        
-        # choose a random  data
-        centroids.append(random.choice(X))
-        
+        centroids = []
+
+        # choose a random data point as the first centroid
+        centroids.append(X[np.random.choice(len(X))])
+
         # initiate the number of choices
         k = self.m * self.n
-        
-        # iterate k-1 number to fill the list of neurons
-        for c in range(k-1):
-            # find the minimum euclidean distance square from the all centroids in each data point
-            dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X]
-            
-            # find the furthest vector of data 
-            furthest_data = X[np.argmax(dist_arr)]
-            
-            # append the data to the list of centroid
-            centroids.append(furthest_data)
-        return centroids
+
+        # calculate the squared distances from each data point to the first centroid
+        dist_sq = np.sum((X - centroids[0])**2, axis=1)
+
+        # iterate k-1 times to fill the list of centroids
+        for _ in range(k - 1):
+            # choose the data point with the maximum squared distance as the next centroid
+            furthest_data_idx = np.argmax(dist_sq)
+            centroids.append(X[furthest_data_idx])
+
+            # update the squared distances to the nearest centroid for each data point
+            dist_sq = np.minimum(dist_sq, np.sum((X - centroids[-1])**2, axis=1))
+
+        return np.array(centroids)
         
     def find_initial_centroid(self, X : np.ndarray, treshold:float):
         """
@@ -244,172 +244,120 @@ class SOM():
         """
         neurons = np.reshape(self.neurons, (-1, self.dim)) # O(1)
         if self.dist_func == "euclidean":
-            min_index = np.argmin([euc_distance(neuron, x) for neuron in neurons]) # O(m * n * dim) 
+            distances = np.linalg.norm(neurons - x, axis=1)
         elif self.dist_func == "cosine":
-            min_index = np.argmin([cos_distance(neuron, x) for neuron in neurons]) # O(m * n * dim) 
-
+            distances = 1 - np.dot(neurons, x) / (np.linalg.norm(neurons, axis=1) * np.linalg.norm(x))
+        min_index = np.argmin(distances)
         return np.unravel_index(min_index, (self.m, self.n)) # O(1)
     
     def gaussian_neighbourhood(self, x1, y1, x2, y2):
         """Represents gaussian function as the hyper parameter of updating weight of neurons
-
         Args:
-            x1 (_type_): x coordinates of best matching unit
-            y1 (_type_): y coordinates of best matching unit
-            x2 (_type_): x coordinates of the neuron
-            y2 (_type_): y coordinates of the neuron
-
+            x1 (float): x coordinates of best matching unit
+            y1 (float): y coordinates of best matching unit
+            x2 (float): x coordinates of the neuron
+            y2 (float): y coordinates of the neuron
         Returns:
-            float(): return the evaluation of h(t) = a(t) * exp(-||r_c - r_i||^2/(2 * o(t)^2))
-        
+            float: return the evaluation of h(t) = a(t) * exp(-||r_c - r_i||^2/(2 * o(t)^2))
+    
         Overall Time Complexity: O(1)
         """
         lr = self.cur_learning_rate
         nr = self.cur_neighbour_rad
-        if nr == 0:
-            nr = 1e-9
-        dist = float(euc_distance([x1, y1], [x2,y2]))
-        exp = math.exp(-0.5 * ((dist/nr*dist/nr)))
-        val = np.float64(lr * exp)
-        return val
+        nr = max(nr, 1e-9)  # Avoid division by zero
+        dist_squared = (x1 - x2) ** 2 + (y1 - y2) ** 2
+        exp = math.exp(-0.5 * dist_squared / (nr * nr))
+        return lr * exp
     
-    def update_neuron(self, x:np.array):
+    def update_neuron(self, x: np.array):
         """Update neurons based on the input data in each iteration
-
         Args:
             x (np.array): the input value from data
-            
+        
         Overall Complexity: O(m * n * dim)
         """
         # find index for the best matching unit index --> O(m * n * dim)
-        bmu_index = self.index_bmu(x)
-        col_bmu = bmu_index[0]
-        row_bmu = bmu_index[1]
-        
+        col_bmu, row_bmu = self.index_bmu(x)
+    
         # iterates through the matrix --> O(m * n * dim)
-        for cur_col in range(len(self.neurons)):
-            for cur_row in range(len(self.neurons[0])):
-                # initiate the current weight of the neurons
-                cur_weight = self.neurons[cur_col][cur_row]
-                
+        for cur_col, col in enumerate(self.neurons):
+            for cur_row, cur_weight in enumerate(col):
                 # calculate the new weight, update only if the weight is > 0
                 h = self.gaussian_neighbourhood(col_bmu, row_bmu, cur_col, cur_row)
-                # !!! CHANGE USE DEGREE IF USE COSINE
                 if h > 0:
                     if self.dist_func == "euclidean":
                         # new weight = cur weight + moving weight * distance
-                        new_weight = cur_weight +  h * (x - cur_weight)
+                        self.neurons[cur_col][cur_row] = cur_weight + h * (x - cur_weight)
                     elif self.dist_func == "cosine":
-                        angle = cos_distance(x,cur_weight)
-                        new_weight = [i+j*h for i,j in zip([math.cos(angle)*i for i in cur_weight],cur_weight)]
-                    # update the weight
-                    self.neurons[cur_col][cur_row] = new_weight
+                        angle = cos_distance(x, cur_weight)
+                        self.neurons[cur_col][cur_row] = [i + j * h for i, j in zip([math.cos(angle) * i for i in cur_weight], cur_weight)]
     
-    def fit(self, X : np.ndarray, epoch : int, shuffle=True, verbose=True):
+    def fit(self, X: np.ndarray, epoch: int, shuffle=True, verbose=True):
         """Tune the neurons to learn the data
-
         Args:
             X (np.ndarray): Input data
-            epoch (int): number of training iteration 
-            shuffle (bool, optional): the initate data to be evaluate in the matrix. 
+            epoch (int): number of training iteration
+            shuffle (bool, optional): the initate data to be evaluate in the matrix.
                 Defaults to True.
-
         Raises:
             SyntaxError: SOM._trained() already true, which the model have been trained
             ValueError: The length of data columns is different with the length of the dimension
-        
+    
         Return:
             None: fit the neurons to the data
-            
+        
         Overall Time Complexity: O(epoch * N * N * C) -> worst case
         """
         if not self._trained:
-            self.neurons = self.initiate_neuron(data=X, min_val= X.min(), max_val= X.max()) # O(m * n * dim)
-            # initiate new neurons
+            self.neurons = self.initiate_neuron(data=X, min_val=X.min(), max_val=X.max())  # O(m * n * dim)
             self.initial_neurons = self.neurons
-        
-        if X.shape[1] != self.dim :
+    
+        if X.shape[1] != self.dim:
             raise ValueError("X.shape[1] should be the same as self.dim, but found {}".format(X.shape[1]))
-        
-        # initiate parameters
-        global_iter_counter = 1
+    
         n_sample = X.shape[0]
         total_iteration = min(epoch * n_sample, self.max_iter)
-        
-        # iterates through epoch --> O(epoch * N * m * n * dim)
-        if verbose:
-            for i in tqdm(range(epoch)):
-                if global_iter_counter > self.max_iter :
-                    break
-                
-                # shuffle the data
-                if shuffle:
-                    np.random.shuffle(X)
-                
-                # iterates through data --> O(N * m * n * dim)
-                for idx in X:
-                    if global_iter_counter > self.max_iter :
-                        break
-                    input = idx
-                    
-                    # update the neurons --> O(m * n * dim)
-                    self.update_neuron(input)
-                    
-                    # update parameter and hyperparameters --> O(1)
-                    global_iter_counter += 1
-                    power = global_iter_counter/total_iteration
-                    self.cur_learning_rate = self.initial_learning_rate**(1-power) * math.exp(-1 * global_iter_counter/self.initial_learning_rate)
-                    self.cur_neighbour_rad = self.initial_neighbour_rad**(1-power) * math.exp(-1 * global_iter_counter/self.initial_neighbour_rad)
-        else:
-            for i in range(epoch):
-                if global_iter_counter > self.max_iter :
-                    break
-                
-                # shuffle the data
-                if shuffle:
-                    np.random.shuffle(X)
-                
-                # iterates through data --> O(N * m * n * dim)
-                for idx in X:
-                    if global_iter_counter > self.max_iter :
-                        break
-                    input = idx
-                    
-                    # update the neurons --> O(m * n * dim)
-                    self.update_neuron(input)
-                    
-                    # update parameter and hyperparameters --> O(1)
-                    global_iter_counter += 1
-                    power = global_iter_counter/total_iteration
-                    self.cur_learning_rate = self.initial_learning_rate**(1-power) * math.exp(-1 * global_iter_counter/self.initial_learning_rate)
-                    self.cur_neighbour_rad = self.initial_neighbour_rad**(1-power) * math.exp(-1 * global_iter_counter/self.initial_neighbour_rad)
-            
-        self._trained = True
-        
-        return 
     
-    def predict(self, X: np.ndarray) :
+        global_iter_counter = 1
+        for i in tqdm(range(epoch), disable=not verbose):
+            if global_iter_counter > self.max_iter:
+                break
+        
+            if shuffle:
+                np.random.shuffle(X)
+        
+            for idx in X:
+                if global_iter_counter > self.max_iter:
+                    break
+            
+                self.update_neuron(idx)  # O(m * n * dim)
+            
+                global_iter_counter += 1
+                power = global_iter_counter / total_iteration
+                self.cur_learning_rate = self.initial_learning_rate ** (1 - power) * math.exp(-1 * global_iter_counter / self.initial_learning_rate)
+                self.cur_neighbour_rad = self.initial_neighbour_rad ** (1 - power) * math.exp(-1 * global_iter_counter / self.initial_neighbour_rad)
+        
+        self._trained = True
+    
+    def predict(self, X: np.ndarray):
         """Label the data based on the neurons using best matching unit
-
         Args:
             X (np.ndarray): input data to be predicted
-
         Raises:
-            NotImplementedError: The model have not been trained yet, call SOM.fit() first
-
+            NotImplementedError: The model has not been trained yet, call SOM.fit() first
         Returns:
-            np.array(): array of the label of each data
+            np.array(): array of the labels of each data
             
         Overall Time Complexity: O(N * m * n * dim)
         """
         if not self._trained:
-            raise  NotImplementedError("SOM object should call fit() before predict()")
+            raise NotImplementedError("SOM object should call fit() before predict()")
         
         assert len(X.shape) == 2, f'X should have two dimensions, not {len(X.shape)}'
-        assert X.shape[1] == self.dim, f'This SOM has dimension {self.dim}. Rechieved input with dimension {X.shape[1]}'
+        assert X.shape[1] == self.dim, f'This SOM has dimension {self.dim}. Received input with dimension {X.shape[1]}'
         
-        labels = [self.index_bmu(x) for x in X]
-        labels = [(self.m*i + j) for i, j in labels]
+        labels = np.array([self.index_bmu(x) for x in X])
+        labels = self.m * labels[:, 0] + labels[:, 1]
         return labels
     
     def fit_predict(self, X : np.ndarray, epoch : int, shuffle=True, verbose=True):
@@ -431,7 +379,7 @@ class SOM():
     
     def evaluate(self, method:str):
         if method not in DISTANCE_METHOD_LIST:
-            raise ValueError("There is no method called {}".format(initiate_method))
+            raise ValueError("There is no method called {}".format(method))
         
         if method == "euclidean":
             dist_matrix = np.array([euc_distance(i,j) for j in self.cluster_center_ for i in self.cluster_center_])
