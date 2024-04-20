@@ -1,7 +1,18 @@
 import numpy as np
-import math 
-import random
+import math
 import sys
+
+def find_most_edge_point(points):
+    # Calculate the center of the dataset
+    center = np.mean(points, axis=0)
+    
+    # Calculate the Euclidean distance between each point and the center
+    distances = np.sqrt(np.sum((points - center)**2, axis=1))
+    
+    # Find the index of the point with the maximum distance
+    most_edge_index = np.argmax(distances)
+    
+    return points[most_edge_index]
 
 def cos_distance(vector1, vector2):
     if len(vector1) != len(vector2):
