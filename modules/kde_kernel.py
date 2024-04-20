@@ -41,7 +41,7 @@ def numerical_gradient(f, x, h=1e-5):
         grad[i] = (f(x_plus) - f(x_minus)) / (2 * h)
     return grad
 
-def find_local_maxima(kde, X, num_restarts=10, max_iter=100, tol=1e-2, step_size=0.1):
+def find_local_maxima(kde, X, num_restarts=100, max_iter=100, tol=1e-5, step_size=0.1):
     n, d = X.shape
     local_maxima = []
     decimals = -int(np.log10(tol))
@@ -62,6 +62,6 @@ def initiate_kde(X: np.array, n_neurons: int):
     kde = multivariate_kde(X, scotts_rule(X))
     local_max = find_local_maxima(kde, X)
     max_neurons = local_max.shape[0]
-    #if max_neurons <= n_neurons:
-    #    raise ValueError(f"Maximum number of neurons is {max_neurons}")
+    if max_neurons <= n_neurons:
+        raise ValueError(f"Maximum number of neurons is {max_neurons}")
     return local_max[np.random.choice(max_neurons, size=n_neurons, replace=False)]
