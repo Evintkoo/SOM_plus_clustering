@@ -166,3 +166,14 @@ def dunn_index(X, labels):
     dunn_index = min_inter_cluster_distance / max_intra_cluster_distance
 
     return dunn_index
+
+def compare_distribution(data1: np.array, data2:np.array, num_bins: int= 100):
+    data1 = np.transpose(data1)
+    data2 = np.transpose(data2)
+    mean_acc = []
+    for i, j in zip(data1, data2):
+        hist1, bin_edges = np.histogram(i, bins=num_bins)
+        hist2, bin_edges = np.histogram(j, bins=num_bins)
+        squared_diff = ((hist1/len(i) - hist2/len(j)) ** 2)**0.5
+        mean_acc.append(np.mean(squared_diff))
+    return np.mean(mean_acc)
