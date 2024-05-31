@@ -1,85 +1,103 @@
-# SOM Clustering Library
+---
 
-The SOM Clustering Library is a Python implementation of the Self-Organizing Map (SOM) algorithm for clustering and visualization of high-dimensional data.
+# Self-Organizing Map (SOM) Implementation
+
+This repository contains an implementation of a Self-Organizing Map (SOM) algorithm, inspired by the paper "A novel self-organizing map (SOM) learning algorithm with nearest and farthest neurons" by Chaudhary, Bhatia, and Ahlawat (2014). The implementation includes various initialization methods and evaluation metrics for clustering quality.
 
 ## Features
 
-- Flexible initialization methods: random or PCA-based
-- Customizable neighborhood radius and learning rate
-- Support for different distance functions: Euclidean, Manhattan, or custom
-- Visualization of the trained SOM grid
-- Prediction of cluster assignments for new data points
+- Initialization methods: random, kde, kmeans, kde_kmeans, kmeans++, SOM++
+- Distance functions: Euclidean, cosine
+- Evaluation metrics: Silhouette score, Davies-Bouldin index, Calinski-Harabasz score, Dunn index
+- Support for multiprocessing to speed up training
 
 ## Installation
 
-To install the SOM Clustering Library, clone the repository using the following command:
+To use this implementation, clone the repository and install the required dependencies:
 
-```
-git clone https://github.com/Evintkoo/SOM_plus_clustering.git
+```bash
+git clone https://github.com/your-repo/som-implementation.git
+cd som-implementation
+pip install -r requirements.txt
 ```
 
 ## Usage
 
-### 1. Import the Library
+### Importing the SOM Class
 
 ```python
-from modules.som import SOM
+from som import SOM
 ```
 
-### 2. Create an SOM object
+### Creating an SOM Instance
 
 ```python
-model = SOM(m=2, n=2, dim=X.shape[1], initiate_method="random", neighbour_rad=0.1, learning_rate=0.1, distance_function="euclidean")
+som = SOM(m=10, n=10, dim=3, initiate_method='random', learning_rate=0.5, neighbour_rad=1.0, distance_function='euclidean', max_iter=1000)
 ```
 
-Parameters:
-- `m`: Number of rows in the SOM grid
-- `n`: Number of columns in the SOM grid
-- `dim`: Dimension of the input data
-- `initiate_method`: Initialization method for the SOM grid ("random" or "pca")
-- `neighbour_rad`: Initial neighborhood radius
-- `learning_rate`: Initial learning rate
-- `distance_function`: Distance function to use ("euclidean", "manhattan", or a custom function)
-
-### 3. Fit the model
+### Training the SOM
 
 ```python
-model.fit(X)
+# Example data
+import numpy as np
+data = np.random.random((100, 3))
+
+# Fit the model
+som.fit(X=data, epoch=100, shuffle=True, verbose=True)
 ```
 
-Parameters:
-- `X`: Input data matrix (numpy array)
-
-### 4. Predict cluster assignments
+### Making Predictions
 
 ```python
-labels = model.predict(X)
+labels = som.predict(data)
+print(labels)
 ```
 
-Parameters:
-- `X`: Input data matrix (numpy array)
+### Multiprocessing for Faster Training
 
-Returns:
-- `labels`: Cluster assignments for each data point
+```python
+som.fit(X=data, epoch=100, shuffle=True, verbose=True, use_multiprocessing=True)
+```
 
-### Additional Utilities
+### Evaluating the SOM
 
-- `model.plot_som()`: Visualize the trained SOM grid
-- `model.get_weights()`: Get the learned weights of the SOM grid
-- `model.get_bmus(X)`: Get the Best Matching Units (BMUs) for each data point
+```python
+silhouette_score = som.evaluate(data, method='silhouette')
+print(silhouette_score)
 
-## Examples
+all_scores = som.evaluate(data, method='all')
+print(all_scores)
+```
 
-For detailed examples and usage, please refer to the [examples](examples/) directory.
+## Detailed Documentation
 
-## Contributing
+### SOM Class
 
-Contributions to the SOM Clustering Library are welcome! If you find any issues or have suggestions for improvements, please open an issue or submit a pull request on the [GitHub repository](https://github.com/Evintkoo/SOM_plus_clustering).
+#### Initialization
 
-## License
+```python
+SOM(m, n, dim, initiate_method, learning_rate, neighbour_rad, distance_function, max_iter=None)
+```
 
-This project is licensed under the [MIT License](LICENSE).
+- `m`: Height of the SOM matrix.
+- `n`: Width of the SOM matrix.
+- `dim`: Dimension of the input data.
+- `initiate_method`: Method for initializing neurons ('random', 'kde', 'kmeans', 'kde_kmeans', 'kmeans++', 'SOM++').
+- `learning_rate`: Initial learning rate for the SOM.
+- `neighbour_rad`: Initial neighbourhood radius.
+- `distance_function`: Distance function to use ('euclidean', 'cosine').
+- `max_iter`: Maximum number of iterations for training.
 
-## Acknowledgments
+#### Methods
 
-The SOM Clustering Library is based on the Self-Organizing Map algorithm proposed by Teuvo Kohonen. We would like to acknowledge the contributions of the open-source community and the developers of the libraries used in this project.
+- `fit(X, epoch, shuffle=True, verbose=True, use_multiprocessing=False)`: Train the SOM on the input data `X` for a specified number of `epoch`s.
+- `predict(X)`: Predict the labels for the input data `X` based on the trained SOM.
+- `fit_predict(X, epoch, shuffle=True, verbose=True)`: Train the SOM and return the predicted labels.
+- `evaluate(X, method='silhouette')`: Evaluate the SOM using the specified evaluation method. Available methods are 'silhouette', 'davies_bouldin', 'calinski_harabasz', 'dunn', and 'all'.
+- `cluster_center_`: Property to get the list of all neurons in the SOM.
+
+### References
+
+Chaudhary, V., Bhatia, R. S., & Ahlawat, A. K. (2014). A novel self-organizing map (SOM) learning algorithm with nearest and farthest neurons. Alexandria Engineering Journal, 53(4), 827-831. [https://doi.org/10.1016/j.aej.2014.09.007](https://doi.org/10.1016/j.aej.2014.09.007)
+
+---

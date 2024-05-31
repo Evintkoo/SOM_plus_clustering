@@ -39,3 +39,26 @@ def random_initiate(dim: int, min_val: float, max_val: float) -> np.ndarray:
     Space Complexity: O(dim)
     """
     return np.random.uniform(min_val, max_val, dim)
+
+import math
+
+def euc_distance(point1, point2):
+    """
+    Calculate the Euclidean distance between two points in n-dimensional space.
+
+    Args:
+        point1 (list or tuple): The coordinates of the first point.
+        point2 (list or tuple): The coordinates of the second point.
+
+    Returns:
+        float: The Euclidean distance between the two points.
+
+    Raises:
+        ValueError: If the dimensions of the two points are not equal.
+    """
+    if len(point1) != len(point2):
+        raise ValueError("The dimensions of the two points must be equal.")
+
+    squared_diff_sum = sum((x1 - x2) ** 2 for x1, x2 in zip(point1, point2))
+    distance = math.sqrt(squared_diff_sum)
+    return distance

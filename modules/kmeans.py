@@ -1,7 +1,7 @@
 import numpy as np
 import math 
 import random
-from .utils import random_initiate, euc_distance, gauss, std_dev, kernel_gauss, deriv, render_bar
+from .utils import random_initiate, euc_distance
 
 class KMeans():
     """
@@ -26,74 +26,6 @@ class KMeans():
         self.centroids = None
         self._trained = False
         self.method = method
-    
-    def find_initial_centroid(self, X : np.ndarray, treshold:float) -> np.ndarray:
-        """
-        Find the initial centroid using kernel density function peaks.
-
-        Args:
-            X (np.ndarray): Matrix of input data.
-            treshold (float): h value for deriv().
-
-        Returns:
-            np.ndarray: list of centroids based on the peak of each variable kernel density function.
-            
-        Overall Time Complexity: O(N*C), C is 1/treshold
-        """
-        # transpose the matrix of the data
-        X = np.transpose(X) # O(1)
-        
-        # create a list of centroids
-        points = list() # O(1)
-        
-        # iterates through the data -> O(N*C)
-        for items in X:
-            # initiate a data of a variable
-            xi = items
-            
-            # create an array of points for x axis 
-            x = np.arange(min(xi),max(xi),treshold) # O(C)
-            
-            # create a list of value of its derivative in range of data
-            y = [deriv(i, treshold, xi) for i in x] # O(C)
-            
-            # build a list of local maximum from the derivative value
-            local_max = list()
-            for i in range(len(y)-1): # O(C)
-                if (y[i] > 0 and y[i+1] < 0) or (y[i] < 0 and y[i+1] > 0):
-                    local_max.append(i*0.001+min(xi))
-                    
-            # append the list of local max of the variable
-            points.append(local_max)
-        return points
-
-    def create_initial_centroid_kde(self, X: np.ndarray, treshold = 0.001) -> np.ndarray:
-        """
-        Initiate the centroid of kmeans using kernel density function peak.
-
-        Args:
-            X (np.ndarray): Matrix of input data.
-            treshold (float, optional): h value for deriv(). Defaults to 0.001.
-
-        Returns:
-            np.ndarray: list of centroid for kmeans clustering.
-            
-        Overall Time Complexity: O(N*C), C is max(1/treshold, dim)
-        """
-        # create a list kde peak for all centroids
-        c = self.find_initial_centroid(X, treshold) # O(N*C)
-        
-        # fill the empty value with none
-        new_c = np.full(shape=(self.n_clusters,X.shape[1]), fill_value = None) # O(N*dim)
-        
-        # change the None value to a randomized float value 
-        for i in range(self.n_clusters): # O(k*dim)
-            for j in range(X.shape[1]): # O(dim)
-                try: 
-                    new_c[i][j] = c[j][i]
-                except:
-                    new_c[i][j] = random.uniform(np.min(X),np.max(X))
-        return new_c
     
     def initiate_plus_plus(self, X : np.ndarray) -> np.ndarray:
         """
@@ -151,13 +83,6 @@ class KMeans():
             # create a random value of data with length of self.n_clusters
             centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
             self.centroids = centroids
-        elif self.method == "kde": 
-            # initiate centroids based on kernel density function peak 
-            centroids = self.create_initial_centroid_kde(X)
-            self.centroids = centroids
-        elif self.method == "kmeans++" :
-            # initiate the centroids using a kmean++ algorithm
-            self.centroids = self.initiate_plus_plus(X)
         else:
             # raise an error if there is no such a method.
             raise ValueError("There is no method named {}".format())
