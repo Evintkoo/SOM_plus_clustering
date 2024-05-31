@@ -6,7 +6,7 @@
 import multiprocessing
 import numpy as np
 import math 
-from .evals import silhouette_score, davies_bouldin_index, calinski_harabasz_score, dunn_index
+from .evals import silhouette_score, davies_bouldin_index, calinski_harabasz_score, dunn_index, compare_distribution
 from .utils import random_initiate, find_most_edge_point, cos_distance
 from .kde_kernel import initiate_kde
 from .kmeans import KMeans
@@ -324,7 +324,7 @@ class SOM():
         total_iteration = min(epoch * n_sample, self.max_iter)
     
         global_iter_counter = 1
-        for i in tqdm(range(epoch), disable=not verbose):
+        for i in tqdm(range(epoch), disable=not verbose, desc=f'evaluation score: {compare_distribution(X, self.cluster_center_)}'):
             if global_iter_counter > self.max_iter:
                 break
         
@@ -336,7 +336,6 @@ class SOM():
                     break
             
                 self.update_neuron(idx)  # O(m * n * dim)
-            
                 global_iter_counter += 1
                 power = global_iter_counter / total_iteration
                 self.cur_learning_rate = self.initial_learning_rate ** (1 - power) * math.exp(-1 * global_iter_counter / self.initial_learning_rate)
@@ -365,7 +364,7 @@ class SOM():
         labels = self.m * labels[:, 0] + labels[:, 1]
         return labels
     
-    def fit_predict(self, X : np.ndarray, epoch : int, shuffle=True, verbose=True):
+    def fit_predict(self, X : np.ndarray, epoch : int, shuffle=True, verbose=True, use_multiprocessing=False):
         """Fit the model based on the data and return the prediciton of  the data
 
         Args:
@@ -379,7 +378,7 @@ class SOM():
             
         Overall Time Complexity: O(epoch * N * m * n * dim)
         """
-        self.fit(X = X, epoch = epoch, shuffle=shuffle, verbose=verbose) # O(epoch * N * m * n * dim)
+        self.fit(X = X, epoch = epoch, shuffle=shuffle, verbose=verbose, use_multiprocessing=use_multiprocessing) # O(epoch * N * m * n * dim)
         return self.predict(X=X) # O(N * m * n * dim)
     
     def evaluate(self, X:np.array, method:str="silhouette"):
