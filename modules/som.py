@@ -5,7 +5,7 @@
 
 import multiprocessing
 import numpy as np
-import math 
+import math, pickle
 from .evals import silhouette_score, davies_bouldin_index, calinski_harabasz_score, dunn_index, compare_distribution
 from .utils import random_initiate, find_most_edge_point, cos_distance
 from .kde_kernel import initiate_kde
@@ -408,3 +408,11 @@ class SOM():
             np.ndarray(): list of all neurons with shape (m*n, dim)
         """
         return np.reshape(self.neurons, (-1, self.dim))
+    
+    def save(self, path:str):
+        with open(path, 'rb') as file:
+            return pickle.dump(self, file)
+            
+    def load(self, path:str):
+        with open(path, 'rb') as file:
+            return pickle.load(self, file)
