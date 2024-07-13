@@ -23,19 +23,28 @@ def silhouette_score(X, labels):
         cluster_points = X[labels == labels[i]]
         if len(cluster_points) > 1:
             a[i] = np.mean(distances[i][labels == labels[i]])
+        else:
+            a[i] = 0  # if the cluster has only one point, set a[i] to 0
 
     # Compute the average nearest-cluster distance (b) for each data point
     b = np.zeros(n_samples)
     for i in range(n_samples):
         other_cluster_distances = []
         for j in range(n_clusters):
-            if j != labels[i]:
+            if j != labels[i] and np.any(labels == j):
                 other_cluster_distances.append(np.mean(distances[i][labels == j]))
         if other_cluster_distances:
             b[i] = min(other_cluster_distances)
+        else:
+            b[i] = 0  # if no other cluster exists, set b[i] to 0
 
     # Compute the Silhouette Coefficient for each data point
-    silhouette_coefficients = (b - a) / np.maximum(a, b)
+    silhouette_coefficients = np.zeros(n_samples)
+    for i in range(n_samples):
+        if a[i] == 0 and b[i] == 0:
+            silhouette_coefficients[i] = 0
+        else:
+            silhouette_coefficients[i] = (b[i] - a[i]) / max(a[i], b[i])
 
     # Compute the overall Silhouette Coefficient
     silhouette_score = np.mean(silhouette_coefficients)
