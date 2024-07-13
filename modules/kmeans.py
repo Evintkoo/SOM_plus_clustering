@@ -83,9 +83,11 @@ class KMeans():
             # create a random value of data with length of self.n_clusters
             centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
             self.centroids = centroids
+        elif self.method == "kmeans++":
+            self.centroids = self.initiate_plus_plus(X=X)
         else:
             # raise an error if there is no such a method.
-            raise ValueError("There is no method named {}".format())
+            raise ValueError("There is no method named {}".format(self.method))
         return 
     
     def update_centroids(self, x:np.array):
