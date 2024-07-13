@@ -87,7 +87,7 @@ class KMeans():
             self.centroids = self.initiate_plus_plus(X=X)
         else:
             # raise an error if there is no such a method.
-            raise ValueError("There is no method named {}".format())
+            raise ValueError("There is no method named {}".format(self.method))
         return 
     
     def update_centroids(self, x:np.array):
