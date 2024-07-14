@@ -6,7 +6,7 @@
 import multiprocessing
 import numpy as np
 import math, pickle
-from .evals import silhouette_score, davies_bouldin_index, calinski_harabasz_score, dunn_index, compare_distribution
+from .evals import silhouette_score, davies_bouldin_index, calinski_harabasz_score, dunn_index, compare_distribution, bcubed_precision, bcubed_recall
 from .utils import random_initiate, find_most_edge_point, cos_distance
 from .kde_kernel import initiate_kde
 from .kmeans import KMeans
@@ -382,24 +382,24 @@ class SOM():
         self.fit(X = X, epoch = epoch, shuffle=shuffle, verbose=verbose, use_multiprocessing=use_multiprocessing) # O(epoch * N * m * n * dim)
         return self.predict(X=X) # O(N * m * n * dim)
     
-    def evaluate(self, X:np.array, y_true:np.array=None, method:List(str)=["silhouette"]):
-        set_A = set(A)
-        set_B = set(B)
+    def evaluate(self, X:np.array, y_true:np.array=None, method:List[str]=["silhouette"]):
+        set_A = set(method)
+        set_B = set(EVAL_METHOD_LIST)
         if not set_A.issubset(set_B):
             raise ValueError(f'{method} is not found in method list')
         
         pred = self.predict(X)
         if "all" not in method:
-        evals = []
-        for m in method:
-            if method == "silhouette":
-                evals.append(silhouette_score(X=X, labels=pred))
-            if method == "davies_bouldin":
-                evals.append(davies_bouldin_index(X=X, labels=pred))
-            if method == "calinski_harabasz":
-                evals.append(calinski_harabasz_score(X=X, labels=pred))
-            if method == "dunn":
-                evals.append(dunn_index(X=X, labels=pred))
+            evals = []
+            for m in method:
+                if method == "silhouette":
+                    evals.append(silhouette_score(X=X, labels=pred))
+                if method == "davies_bouldin":
+                    evals.append(davies_bouldin_index(X=X, labels=pred))
+                if method == "calinski_harabasz":
+                    evals.append(calinski_harabasz_score(X=X, labels=pred))
+                if method == "dunn":
+                    evals.append(dunn_index(X=X, labels=pred))
         else:
             return {"silhouette": silhouette_score(X=X, labels=pred),
                     "davies_bouldin": davies_bouldin_index(X=X, labels=pred), 
