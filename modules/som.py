@@ -12,6 +12,7 @@ from .kde_kernel import initiate_kde
 from .kmeans import KMeans
 from .variables import INITIATION_METHOD_LIST, DISTANCE_METHOD_LIST, EVAL_METHOD_LIST
 from tqdm import tqdm
+from typing import List
 
 # Self Organizing Matrix Class
 class SOM(): 
@@ -381,24 +382,32 @@ class SOM():
         self.fit(X = X, epoch = epoch, shuffle=shuffle, verbose=verbose, use_multiprocessing=use_multiprocessing) # O(epoch * N * m * n * dim)
         return self.predict(X=X) # O(N * m * n * dim)
     
-    def evaluate(self, X:np.array, method:str="silhouette"):
-        pred = self.predict(X)
-        if method not in EVAL_METHOD_LIST:
+    def evaluate(self, X:np.array, y_true:np.array=None, method:List(str)=["silhouette"]):
+        set_A = set(A)
+        set_B = set(B)
+        if not set_A.issubset(set_B):
             raise ValueError(f'{method} is not found in method list')
         
-        if method == "silhouette":
-            return silhouette_score(X=X, labels=pred)
-        if method == "davies_bouldin":
-            return davies_bouldin_index(X=X, labels=pred)
-        if method == "calinski_harabasz":
-            return calinski_harabasz_score(X=X, labels=pred)
-        if method == "dunn":
-            return dunn_index(X=X, labels=pred)
-        if method == "all":
+        pred = self.predict(X)
+        if "all" not in method:
+        evals = []
+        for m in method:
+            if method == "silhouette":
+                evals.append(silhouette_score(X=X, labels=pred))
+            if method == "davies_bouldin":
+                evals.append(davies_bouldin_index(X=X, labels=pred))
+            if method == "calinski_harabasz":
+                evals.append(calinski_harabasz_score(X=X, labels=pred))
+            if method == "dunn":
+                evals.append(dunn_index(X=X, labels=pred))
+        else:
             return {"silhouette": silhouette_score(X=X, labels=pred),
                     "davies_bouldin": davies_bouldin_index(X=X, labels=pred), 
                     "calinski_harabasz": calinski_harabasz_score(X=X, labels=pred),
-                    "dunn": dunn_index(X=X, labels=pred)}
+                    "dunn": dunn_index(X=X, labels=pred),
+                    "bscore_precision": bcubed_precision(self.cluster_center_, y_true),
+                    "bscore_recall": bcubed_recall(self.cluster_center_, y_true)
+                    }
     
     @property
     def cluster_center_(self):
