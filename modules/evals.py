@@ -186,3 +186,71 @@ def compare_distribution(data1: np.array, data2:np.array, num_bins: int= 100):
         squared_diff = ((hist1/len(i) - hist2/len(j)) ** 2)**0.5
         mean_acc.append(np.mean(squared_diff))
     return np.mean(mean_acc)
+
+def bcubed_precision(clusters, labels):
+    """
+    Menghitung BCubed Precision berdasarkan kluster dan label.
+    
+    Args:
+    clusters (list): Daftar kluster yang dihasilkan oleh algoritma clustering.
+    labels (list): Daftar label asli (ground truth) dari data.
+    
+    Returns:
+    float: Nilai BCubed Precision.
+    """
+    n = len(labels)
+    assert len(clusters) == n, "Panjang kluster dan label harus sama"
+    
+    precision_sum = 0.0
+    
+    for i in range(n):
+        cluster_i = clusters[i]
+        label_i = labels[i]
+        
+        # Item-item dalam kluster yang sama dengan item i
+        same_cluster = [j for j in range(n) if clusters[j] == cluster_i]
+        
+        # Item-item dalam kluster yang memiliki label yang sama dengan item i
+        same_label_in_cluster = [j for j in same_cluster if labels[j] == label_i]
+        
+        # Precision untuk item i
+        precision_i = len(same_label_in_cluster) / len(same_cluster)
+        precision_sum += precision_i
+    
+    # BCubed Precision
+    bcubed_precision = precision_sum / n
+    return bcubed_precision
+
+def bcubed_recall(clusters, labels):
+    """
+    Menghitung BCubed Recall berdasarkan kluster dan label.
+    
+    Args:
+    clusters (list): Daftar kluster yang dihasilkan oleh algoritma clustering.
+    labels (list): Daftar label asli (ground truth) dari data.
+    
+    Returns:
+    float: Nilai BCubed Recall.
+    """
+    n = len(labels)
+    assert len(clusters) == n, "Panjang kluster dan label harus sama"
+    
+    recall_sum = 0.0
+    
+    for i in range(n):
+        cluster_i = clusters[i]
+        label_i = labels[i]
+        
+        # Item-item yang memiliki label yang sama dengan item i
+        same_label = [j for j in range(n) if labels[j] == label_i]
+        
+        # Item-item dalam kluster yang memiliki label yang sama dengan item i
+        same_label_in_cluster = [j for j in same_label if clusters[j] == cluster_i]
+        
+        # Recall untuk item i
+        recall_i = len(same_label_in_cluster) / len(same_label)
+        recall_sum += recall_i
+    
+    # BCubed Recall
+    bcubed_recall = recall_sum / n
+    return bcubed_recall
