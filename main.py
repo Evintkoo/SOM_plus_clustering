@@ -1,11 +1,13 @@
 from modules.som import SOM
-from modules.model_picker import model_picker
+from modules.som_classification import som_classification
 import pandas as pd
 import time
 
 if __name__ == "__main__":
-    df = pd.read_csv("data.csv", header=None).iloc[:, :-1]
-    X = df.values
+    df = pd.read_csv("data.csv", header=None)
+    X = df.iloc[:, :-1].values
+    y = df.iloc[:,-1].values
+    X.shape, y.shape
     m = 2
     n = 2
     init1 = "random"
@@ -31,6 +33,9 @@ if __name__ == "__main__":
     print("time difference:", (ex_time2)/ex_time*100 - 100,"%")
     #print("time difference:", (ex_time3)/ex_time*100 - 100,"%")
     print("eval for model 1")
-    print(model1.evaluate(X=X, method="all"))
-    print(model2.evaluate(X=X, method="all"))
+    print(model1.evaluate(X=X, method=["davies_bouldin", "silhouette", "calinski_harabasz", "dunn"]))
+    print(model2.evaluate(X=X, method=["davies_bouldin", "silhouette", "calinski_harabasz", "dunn"]))
     #print(model3.evaluate(X=X, method="all"))
+    
+    classification_model = som_classification(2,2,X,y)
+    classification_model.train()
