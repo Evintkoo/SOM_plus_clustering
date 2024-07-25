@@ -62,3 +62,17 @@ def euc_distance(point1, point2):
     squared_diff_sum = sum((x1 - x2) ** 2 for x1, x2 in zip(point1, point2))
     distance = math.sqrt(squared_diff_sum)
     return distance
+
+def one_hot_encode(y):
+    classes = np.unique(y)
+    encoded = np.zeros((y.size, classes.size))
+    for idx, label in enumerate(y):
+        encoded[idx, np.where(classes == label)[0][0]] = 1
+    return encoded
+
+def normalize_column(data, column_index):
+    column = data[:, column_index]
+    min_val = np.min(column)
+    max_val = np.max(column)
+    normalized_column = (column - min_val) / (max_val - min_val)
+    return normalized_column
