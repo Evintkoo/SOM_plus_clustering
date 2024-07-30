@@ -6,7 +6,7 @@
 import multiprocessing
 import numpy as np
 import math, pickle
-from .evals import silhouette_score, davies_bouldin_index, calinski_harabasz_score, dunn_index, compare_distribution, bcubed_precision, bcubed_recall
+from .evals import silhouette_score, davies_bouldin_index, calinski_harabasz_score, dunn_index, compare_distribution, bcubed_precision_recall
 from .utils import random_initiate, find_most_edge_point, cos_distance
 from .kde_kernel import initiate_kde
 from .kmeans import KMeans
@@ -392,14 +392,15 @@ class SOM():
         if "all" not in method:
             evals = []
             for m in method:
-                if method == "silhouette":
+                if m == "silhouette":
                     evals.append(silhouette_score(X=X, labels=pred))
-                if method == "davies_bouldin":
+                if m == "davies_bouldin":
                     evals.append(davies_bouldin_index(X=X, labels=pred))
-                if method == "calinski_harabasz":
+                if m == "calinski_harabasz":
                     evals.append(calinski_harabasz_score(X=X, labels=pred))
-                if method == "dunn":
+                if m == "dunn":
                     evals.append(dunn_index(X=X, labels=pred))
+            return evals
         else:
             return {"silhouette": silhouette_score(X=X, labels=pred),
                     "davies_bouldin": davies_bouldin_index(X=X, labels=pred), 
