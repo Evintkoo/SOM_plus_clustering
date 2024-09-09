@@ -1,19 +1,100 @@
+"""
+evals.py
+
+This module provides a set of functions to evaluate clustering performance using various metrics. 
+These metrics help in assessing the quality and effectiveness of different clustering algorithms 
+by comparing the distance between points within clusters and across different clusters.
+
+Functions:
+    silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
+        Calculates the Silhouette Coefficient for a given clustering result.
+    
+    davies_bouldin_index(x: np.ndarray, labels: np.ndarray) -> float:
+        Computes the Davies-Bouldin Index for evaluating the clustering result.
+    
+    calinski_harabasz_score(x: np.ndarray, labels: np.ndarray) -> float:
+        Calculates the Calinski-Harabasz Index for a clustering result.
+    
+    dunn_index(x: np.ndarray, labels: np.ndarray) -> float:
+        Computes the Dunn Index, measuring the ratio of minimum inter-cluster distance to 
+        maximum intra-cluster distance.
+
+    compare_distribution(data1: np.ndarray, data2: np.ndarray, num_bins: int = 100) -> float:
+        Compares the distribution of two datasets by calculating the mean of the 
+        average squared differences between their normalized histograms.
+
+    bcubed_precision_recall(clusters: np.ndarray, labels: np.ndarray) -> Tuple[float, float]:
+        Computes the BCubed Precision and Recall for clustering results, 
+        comparing cluster assignments to ground truth labels.
+
+Usage Example:
+    ```python
+    import numpy as np
+    from evals import (
+        silhouette_score, davies_bouldin_index, calinski_harabasz_score, 
+        dunn_index, compare_distribution, bcubed_precision_recall
+    )
+
+    # Example input data
+    x = np.array([[1.0, 2.0], [3.0, 4.0], [1.0, 0.5], [3.5, 4.5]])
+    labels = np.array([0, 1, 0, 1])
+
+    # Calculate various clustering metrics
+    silhouette = silhouette_score(x, labels)
+    db_index = davies_bouldin_index(x, labels)
+    ch_index = calinski_harabasz_score(x, labels)
+    dunn = dunn_index(x, labels)
+
+    # Compare distributions between two datasets
+    distribution_comparison = compare_distribution(x, x, num_bins=10)
+
+    # Compute BCubed precision and recall
+    precision, recall = bcubed_precision_recall(labels, labels)
+
+    print(f"Silhouette Score: {silhouette}")
+    print(f"Davies-Bouldin Index: {db_index}")
+    print(f"Calinski-Harabasz Index: {ch_index}")
+    print(f"Dunn Index: {dunn}")
+    print(f"Distribution Comparison: {distribution_comparison}")
+    print(f"BCubed Precision: {precision}, BCubed Recall: {recall}")
+    ```
+
+Dependencies:
+    - numpy: Used for numerical computations and data manipulation.
+    - scipy.spatial.distance: Provides functions for calculating pairwise distances
+    - typing: Used for type hinting in function definitions.
+
+Description:
+    This module is useful for evaluating the effectiveness of clustering algorithms. Each function 
+    calculates a specific clustering metric, helping to determine the best clustering approach
+    These metrics provide insights into the compactness, separation, and distribution of clusters.
+
+References:
+    - Silhouette Score: https://en.wikipedia.org/wiki/Silhouette_(clustering)
+    - Davies-Bouldin Index: https://en.wikipedia.org/wiki/Davies%E2%80%93Bouldin_index
+    - Calinski-Harabasz Index: https://en.wikipedia.org/wiki/Calinski%E2%80%93Harabasz_index
+    - Dunn Index: https://en.wikipedia.org/wiki/Dunn_index
+    - BCubed Precision and Recall: https://en.wikipedia.org/wiki/Cluster_analysis
+"""
+
+from typing import Tuple
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
-def silhouette_score(X: np.ndarray, labels: np.ndarray) -> float:
+def silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
     """
     Calculate the Silhouette Coefficient for a clustering result.
 
     Args:
-        X (np.ndarray): The input data points, shape (n_samples, n_features).
+        x (np.ndarray): The input data points, shape (n_samples, n_features).
         labels (np.ndarray): The assigned cluster labels for each data point, shape (n_samples,).
 
     Returns:
-        float: The Silhouette Coefficient. Returns 0.0 if there's only one cluster or if all clusters have only one sample.
+        float: The Silhouette Coefficient. 
+                Returns 0.0 if there's only one cluster or if all clusters have only one sample.
     """
-    distances = squareform(pdist(X))
-    n_samples = X.shape[0]
+    distances = squareform(pdist(x))
+    n_samples = x.shape[0]
     unique_labels = np.unique(labels)
 
     if len(unique_labels) == 1:
@@ -25,32 +106,33 @@ def silhouette_score(X: np.ndarray, labels: np.ndarray) -> float:
     for label in unique_labels:
         mask = labels == label
         cluster_size = np.sum(mask)
-        
+
         if cluster_size > 1:
             a[mask] = np.sum(distances[mask][:, mask], axis=1) / (cluster_size - 1)
         else:
             a[mask] = 0  # Set a to 0 for clusters with only one sample
-        
-        other_distances = [np.mean(distances[mask][:, labels == other_label]) 
+
+        other_distances = [np.mean(distances[mask][:, labels == other_label])
                            for other_label in unique_labels if other_label != label]
         if other_distances:
             b[mask] = np.min(other_distances)
 
     s = np.zeros(n_samples)
     valid_samples = (a != 0) | (b != np.inf)
-    s[valid_samples] = (b[valid_samples] - a[valid_samples]) / np.maximum(a[valid_samples], b[valid_samples])
+    s[valid_samples] = ((b[valid_samples] - a[valid_samples]) /
+                        np.maximum(a[valid_samples], b[valid_samples]))
 
     if np.sum(valid_samples) == 0:
         return 0.0  # Return 0 if all clusters have only one sample
 
     return float(np.mean(s[valid_samples]))
 
-def davies_bouldin_index(X: np.ndarray, labels: np.ndarray) -> float:
+def davies_bouldin_index(x: np.ndarray, labels: np.ndarray) -> float:
     """
     Calculate the Davies-Bouldin Index for a clustering result.
 
     Args:
-        X (np.ndarray): The input data points, shape (n_samples, n_features).
+        x (np.ndarray): The input data points, shape (n_samples, n_features).
         labels (np.ndarray): The cluster labels for each data point, shape (n_samples,).
 
     Returns:
@@ -58,72 +140,72 @@ def davies_bouldin_index(X: np.ndarray, labels: np.ndarray) -> float:
     """
     unique_labels = np.unique(labels)
     n_clusters = len(unique_labels)
-    
-    centroids = np.array([np.mean(X[labels == i], axis=0) for i in unique_labels])
-    
+
+    centroids = np.array([np.mean(x[labels == i], axis=0) for i in unique_labels])
+
     dispersions = np.zeros(n_clusters)
     for i, label in enumerate(unique_labels):
-        cluster_points = X[labels == label]
+        cluster_points = x[labels == label]
         dispersions[i] = np.mean(np.linalg.norm(cluster_points - centroids[i], axis=1))
-    
+
     centroid_distances = pdist(centroids)
-    
-    db_index = 0
+
+    db_index = 0.0
     for i in range(n_clusters):
-        max_ratio = 0
+        max_ratio = 0.0
         for j in range(i + 1, n_clusters):
-            ratio = (dispersions[i] + dispersions[j]) / centroid_distances[n_clusters * i + j - ((i + 2) * (i + 1)) // 2]
+            ratio = ((dispersions[i] + dispersions[j]) /
+                     centroid_distances[n_clusters * i + j - ((i + 2) * (i + 1)) // 2])
             max_ratio = max(max_ratio, ratio)
         db_index += max_ratio
-    
+
     return db_index / n_clusters
 
-def calinski_harabasz_score(X: np.ndarray, labels: np.ndarray) -> float:
+def calinski_harabasz_score(x: np.ndarray, labels: np.ndarray) -> float:
     """
     Calculate the Calinski-Harabasz Index for a clustering result.
 
     Args:
-        X (np.ndarray): The input data matrix, shape (n_samples, n_features).
+        x (np.ndarray): The input data matrix, shape (n_samples, n_features).
         labels (np.ndarray): The cluster labels for each data point, shape (n_samples,).
 
     Returns:
         float: The Calinski-Harabasz Index.
     """
-    n_samples, n_features = X.shape
+    n_samples, _ = x.shape
     unique_labels = np.unique(labels)
     n_clusters = len(unique_labels)
+    overall_centroid = np.mean(x, axis=0)
 
-    overall_centroid = np.mean(X, axis=0)
-    
-    between_dispersion = 0
-    within_dispersion = 0
-    
+    between_dispersion = 0.0
+    within_dispersion = 0.0
+
     for label in unique_labels:
-        cluster_points = X[labels == label]
+        cluster_points = x[labels == label]
         cluster_size = cluster_points.shape[0]
         cluster_centroid = np.mean(cluster_points, axis=0)
-        
+
         between_dispersion += cluster_size * np.sum((cluster_centroid - overall_centroid) ** 2)
         within_dispersion += np.sum((cluster_points - cluster_centroid) ** 2)
 
     return ((n_samples - n_clusters) / (n_clusters - 1)) * (between_dispersion / within_dispersion)
 
-def dunn_index(X: np.ndarray, labels: np.ndarray) -> float:
+def dunn_index(x: np.ndarray, labels: np.ndarray) -> float:
     """
     Calculate the Dunn Index for a clustering result.
 
     Args:
-        X (np.ndarray): The input data points, shape (n_samples, n_features).
+        x (np.ndarray): The input data points, shape (n_samples, n_features).
         labels (np.ndarray): The cluster labels for each data point, shape (n_samples,).
 
     Returns:
         float: The Dunn Index value.
     """
-    distances = squareform(pdist(X))
+    distances = squareform(pdist(x))
     unique_labels = np.unique(labels)
 
     min_inter_cluster_distance = np.inf
-    max_intra_cluster_distance = 0
+    max_intra_cluster_distance = 0.0
 
     for i, label_i in enumerate(unique_labels):
         mask_i = labels == label_i
@@ -150,14 +232,14 @@ def compare_distribution(data1: np.ndarray, data2: np.ndarray, num_bins: int = 1
         float: Mean of the average squared differences between normalized histograms.
     """
     mean_acc = []
-    for i, j in zip(data1, data2):
-        hist1, _ = np.histogram(i, bins=num_bins, density=True)
-        hist2, _ = np.histogram(j, bins=num_bins, density=True)
+    for feature1, feature2 in zip(data1, data2):
+        hist1, _ = np.histogram(feature1, bins=num_bins, density=True)
+        hist2, _ = np.histogram(feature2, bins=num_bins, density=True)
         squared_diff = np.mean(np.abs(hist1 - hist2))
         mean_acc.append(squared_diff)
     return np.mean(mean_acc)
 
-def bcubed_precision_recall(clusters: np.ndarray, labels: np.ndarray) -> tuple:
+def bcubed_precision_recall(clusters: np.ndarray, labels: np.ndarray) -> Tuple[float, float]:
     """
     Calculate BCubed Precision and Recall for clustering results.
 
