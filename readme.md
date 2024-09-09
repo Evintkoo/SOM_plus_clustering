@@ -45,7 +45,7 @@ The Self-Organizing Map (SOM) is a type of artificial neural network trained usi
 Clone the repository and install the required dependencies:
 
 ```bash
-git clone https://github.com/your-repo/som-implementation.git
+git clone https://github.com/Evintkoo/SOM_plus_clustering.git
 cd som-implementation
 pip install -r requirements.txt
 ```
