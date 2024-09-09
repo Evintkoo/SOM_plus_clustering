@@ -1,162 +1,186 @@
-import numpy as np
-import math 
+"""
+kmeans.py
+
+This module contains the implementation of the KMeans clustering algorithm, 
+which partitions a dataset into a number of clusters by minimizing the variance within each cluster.
+
+Classes:
+    KMeans: A class that implements the KMeans clustering algorithm.
+
+Functions:
+    None.
+
+Usage Example:
+    ```python
+    import numpy as np
+    from kmeans import KMeans
+
+    # Sample data
+    data = np.array([[1.0, 2.0], [2.0, 1.0], [4.0, 5.0], [5.0, 4.0]])
+
+    # Initialize KMeans with 2 clusters and the 'kmeans++' initialization method
+    kmeans = KMeans(n_clusters=2, method='kmeans++')
+
+    # Train the KMeans model on the data
+    kmeans.fit(data)
+
+    # Predict the cluster of each data point
+    labels = kmeans.predict(data)
+
+    print("Cluster Labels:", labels)
+    ```
+
+Details:
+    - The KMeans algorithm aims to partition n observations into k clusters 
+    in which each observation belongs to the cluster with the nearest mean.
+    - The `KMeans` class provides functionality for initializing centroids 
+    using either random or KMeans++ methods, updating centroids during training,
+    and predicting the clusters for new data points.
+
+Module Dependencies:
+    - numpy: Used for numerical operations and data manipulation.
+    - random: Used for random selection and initialization.
+    - typing: Provides support for type hints.
+    - utils (user-defined module): Contains utility functions such as
+    `random_initiate` and `euc_distance`.
+"""
+
+
+from typing import List, Optional
 import random
+import numpy as np
 from .utils import random_initiate, euc_distance
 
-class KMeans():
+class KMeans:
     """
-    Kmeans class is consist of:
-        kmeans.n_clusters(int): Number of centroids.
-        kmeans.centroids(np.ndarray): Vector value of centroids with size of kmeans.n_clusters.
-        kmeans._trained(bool): If the kmeans.fit() have called, returns true, false otherwise
-        kmeans.method(str): Kmeans centroid initiation method.
+    KMeans clustering algorithm.
+
+    Attributes:
+        n_clusters (int): Number of centroids.
+        centroids (Optional[List[np.ndarray]]): List of centroid vectors.
+        _trained (bool): Indicates if the model has been trained.
+        method (str): Method for centroid initialization.
     """
-    def __init__(self, n_clusters: int, method:str):
+
+    def __init__(self, n_clusters: int, method: str) -> None:
         """
-        Intiate the main parameter of kmeans clustering.
+        Initialize the KMeans clustering parameters.
 
         Args:
-            n_clusters (int): Number of centroids for kmeans.
-            method (str): Initiation method for kmeans.
-            
-            
-        Overall Time Complexity: O(1)
+            n_clusters (int): Number of centroids for KMeans.
+            method (str): Method for initializing centroids.
         """
-        self.n_clusters = n_clusters
-        self.centroids = None
-        self._trained = False
-        self.method = method
-    
-    def initiate_plus_plus(self, X : np.ndarray) -> np.ndarray:
+        self.n_clusters: int = n_clusters
+        self.centroids: np.ndarray = np.ndarray([])
+        self._trained: bool = False
+        self.method: str = method
+
+    def initiate_plus_plus(self, x: np.ndarray) -> List[np.ndarray]:
         """
-        Initiate the centroid value using kmeans++ algorithm
+        Initialize centroids using the KMeans++ algorithm.
 
         Args:
-            X (np.ndarray): Matrix of input data.
+            X (np.ndarray): Input data matrix.
 
         Returns:
-            np.ndarray: list of centroid for kmeans clustering.
-            
-        Overall Time Complexity: O(N*k*k*dim), k is number of cluster
+            List[np.ndarray]: List of centroids for KMeans clustering.
         """
-        # initiate empty list of centroids
-        centroids = list() # O(1)
-        
-        # choose a random list of data
-        centroids.append(random.choice(X)) # O(1)
-        
-        # initiate the number of k in kmeans
-        k = self.n_clusters # O(1)
-        
-        # iterate k-1 number to fill the list of centroids
-        for c in range(k-1): # O(k)
-            # find the minimum euclidean distance square from the all centroids in each data point
-            dist_arr = [min([euc_distance(j, i)*euc_distance(j, i) for j in centroids]) for i in X] # O(N*K*dim)
-            
-            # find the furthest vector of data 
-            furthest_data = X[np.argmax(dist_arr)] # O(N)
-            
-            # append the data to the list of centroid
+        centroids: List[np.ndarray] = [random.choice(x)]
+        k: int = self.n_clusters
+
+        for _ in range(k - 1):
+            dist_arr: List[float] = [
+                min(euc_distance(i, c) ** 2 for c in centroids) for i in x
+            ]
+            furthest_data: np.ndarray = x[np.argmax(dist_arr)]
             centroids.append(furthest_data)
+
         return centroids
-    
-    def init_centroids(self, X: np.ndarray) -> np.ndarray:
+
+    def init_centroids(self, x: np.ndarray) -> None:
         """
-        Initiate the centroids of kmeans clustering.
+        Initialize centroids for KMeans clustering.
 
         Args:
-            X (np.ndarray): Matrix of input data.
+            X (np.ndarray): Input data matrix.
 
         Raises:
-            ValueError: If there is no method name self.method.
-
-        Returns:
-            np.ndarray: list of centroids for kmeans clustering (ready to train).
-        
-        Overall Time Complexity:
-            random: O(k*dim)
-            kde: O(N*C*dim)
-            kmeans++: O(N*k*dim)
+            ValueError: If the initialization method is not recognized.
         """
-        
         if self.method == "random":
-            # create a random value of data with length of self.n_clusters
-            centroids = [random_initiate(dim=X.shape[1], min_val=X.min(), max_val=X.max()) for i in range(self.n_clusters)]
-            self.centroids = centroids
+            self.centroids = [
+                random_initiate(dim=x.shape[1], min_val=x.min(), max_val=x.max())
+                for _ in range(self.n_clusters)
+            ]
         elif self.method == "kmeans++":
-            self.centroids = self.initiate_plus_plus(X=X)
+            self.centroids = self.initiate_plus_plus(x)
         else:
-            # raise an error if there is no such a method.
-            raise ValueError("There is no method named {}".format(self.method))
-        return 
-    
-    def update_centroids(self, x:np.array):
+            raise ValueError(f"Unrecognized method: {self.method}")
+
+    def update_centroids(self, x: np.ndarray) -> None:
         """
-        update the centroid value
+        Update the centroid values.
 
         Args:
-            x (np.array): input data
-        
-        Overall Time Complexity: O(k)
+            x (np.ndarray): Input data point.
         """
-        # new_centroids = np.array([X[self.cluster_labels == i].mean(axis=0) for i in range(self.k)])
-        new_centroids = list() # O(1)
-        
-        # find the distance of centroids for each data
-        centroids_distance = [euc_distance(x, i) for i in self.centroids] # O(k)
-        
-        # find the closest centroid in self.centroids
-        closest_centroids_index = np.argmin(centroids_distance) # O(k)
-        closest_centroids = self.centroids[closest_centroids_index] # O(1)
-        
-        # update the closest centroids to the data
-        closest_centroids = [(i+j)/2 for i,j in zip(x,closest_centroids)] # O(k)
-        
-        # update the centroid in model
-        self.centroids[closest_centroids_index] = closest_centroids # O(1)
-        
-    
-    def fit(self, X: np.ndarray, epochs=3000, shuffle=True):
+        if self.centroids is None or x is None:
+            raise ValueError("Centroids or X have not been initiated.")
+
+        distances: List[float] = [euc_distance(x, c) for c in self.centroids]
+        # Find the index of the closest centroid
+        closest_centroid_index: int = int(np.argmin(distances))  # Convert to Python int
+        # Get the closest centroid using the index
+        closest_centroid: np.ndarray = self.centroids[closest_centroid_index]
+
+
+        # Update centroid
+        updated_centroid: np.ndarray = np.mean([closest_centroid, x], axis=0)
+        self.centroids[closest_centroid_index] = updated_centroid
+
+    def fit(self, x: np.ndarray, epochs: int = 3000, shuffle: bool = True) -> None:
         """
-        Train the kmeans model to find the best value of the centroid.
+        Train the KMeans model to find the best centroid values.
 
         Args:
-            X (np.ndarray): Matrix of input data.
-            epochs (int, optional): Number of training iteration. Defaults to 3000.
-            shuffle (bool, optional): Shuffle the data. Defaults to True.
+            X (np.ndarray): Input data matrix.
+            epochs (int, optional): Number of training iterations. Defaults to 3000.
+            shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
 
         Raises:
-            SyntaxError: Only could train the model if kmeans._trained is false (have not been trained)
-        
-        Overall Time Complexity: O(N*C), C max (1/treshold, k*epoch)
+            RuntimeError: If the model has already been trained.
         """
         if self._trained:
-            raise SyntaxError("Cannot fit the model that have been trained")
-        
-        # initiate the centroid of kmeans model
-        self.init_centroids(X) # O(N*C) assuming k << C
-        
-        # iterates several times for trains the data
-        for epoch in range(epochs): # O(epoch)
-            
-            # shuffle the data
+            raise RuntimeError("Cannot fit an already trained model.")
+
+        # Initialize centroids
+        self.init_centroids(x)
+
+        # Train the model
+        for _ in range(epochs):
             if shuffle:
-                np.random.shuffle(X) # O(N)
-            
-            # iterates through data to update centroids
-            for x in X: # O(N*k)
-                self.update_centroids(x) # O(k)
-    
-    def predict(self, X : np.ndarray) -> np.array:
+                np.random.shuffle(x)
+
+            for i in x:
+                self.update_centroids(i)
+
+        self._trained = True
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
         """
-        Predict the cluster number from the matrix of data.
+        Predict the cluster number for each data point in the input matrix.
 
         Args:
-            X (np.ndarray): Matrix of input data.
+            x (np.ndarray): Input data matrix.
 
         Returns:
-            np.array: list of cluster label.
-            
-        Overall Time Complplexity: O(N*k)
+            np.ndarray: Cluster labels for each data point.
         """
-        return [np.argmin([euc_distance(x, centers) for centers in self.centroids]) for x in X]
+        # Compute the distance of each data point to all centroids and find the closest centroid
+        cluster_labels = np.array([
+            int(np.argmin([euc_distance(i, c) for c in self.centroids]))
+            for i in x
+        ])
+        
+        return cluster_labels
+

@@ -1,427 +1,319 @@
 """
-    References :
-    Chaudhary, V., Bhatia, R. S., & Ahlawat, A. K. (2014). A novel self-organizing map (SOM) learning algorithm with nearest and farthest neurons. Alexandria Engineering Journal, 53(4), 827-831. https://doi.org/10.1016/j.aej.2014.09.007
+This module implements the Self-Organizing Map (SOM) algorithm for unsupervised learning.
+It includes methods for initializing the SOM, training it on input data,
+and visualizing the results.
 """
-
-import multiprocessing
+import math
+import pickle
+from typing import List, Tuple, Union
 import numpy as np
-import math, pickle
-from .evals import silhouette_score, davies_bouldin_index, calinski_harabasz_score, dunn_index, compare_distribution, bcubed_precision, bcubed_recall
-from .utils import random_initiate, find_most_edge_point, cos_distance
+import joblib
+from joblib import Parallel, delayed
+
+from .evals import (
+    silhouette_score, davies_bouldin_index, calinski_harabasz_score,
+    dunn_index #, compare_distribution, bcubed_precision_recall
+)
+from .utils import find_most_edge_point, cos_distance
 from .kde_kernel import initiate_kde
 from .kmeans import KMeans
 from .variables import INITIATION_METHOD_LIST, DISTANCE_METHOD_LIST, EVAL_METHOD_LIST
-from tqdm import tqdm
-from typing import List
 
-# Self Organizing Matrix Class
-class SOM(): 
+def validate_configuration(initiate_method: str,
+                        learning_rate: float,
+                        distance_function: str) -> None:
+    """Validate input parameters."""
+    if learning_rate > 1.76:
+        raise ValueError("Learning rate should be less than 1.76")
+    if initiate_method not in INITIATION_METHOD_LIST:
+        raise ValueError(f"Invalid initiation method: {initiate_method}")
+    if distance_function not in DISTANCE_METHOD_LIST:
+        raise ValueError(f"Invalid distance function: {distance_function}")
+
+def initiate_plus_plus(m: int, n:int, x: np.ndarray) -> np.ndarray:
+    """Initialize centroids using SOM++ algorithm."""
+    centroids: List[np.ndarray] = [find_most_edge_point(x)]
+    k: int = m * n
+    dist_sq: np.ndarray = np.sum((x - centroids[0])**2, axis=1)
+
+    for _ in range(1, k):
+        furthest_data_idx: int = int(np.argmax(dist_sq))
+        centroids.append(x[furthest_data_idx])
+        dist_sq = np.minimum(dist_sq, np.sum((x - centroids[-1])**2, axis=1))
+
+    return np.array(centroids)
+
+class SOM:
     """
-    SOM class is consist of:
-        SOM.m (int): height of the matrix.
-        SOM.n (int): width of the matrix.
-        SOM.dim (int): input dimension of matrix.
-        SOM.max_iter (int): maximum number of iteration for each training iteration.
-        SOM.shape (tuple): shape of the matrix
-        SOM.cur_learning_rate (float): current learning rate of matrix (a(t))
-        SOM.initial_learning_rate (float): defined learning rate of SOM (a(0))
-        SOM._trained (bool): status of the model
-        SOM.init_method (str): neurons initiation method 
-        self.cur_neighbor_rad (float): current neighbor radius of SOM (g(t))
-        self.initial_neighbor_rad (float): initial neighbourhood radius of SOM (g(o))
-        SOM.neurons (np.ndarray): value of neurons in the matrix, none if SOM.fit() have not called yet
-        SOM.initial_neurons (np.ndarray): initial value of the neurons, none if SOM.fit() have not called yet
+    Self-Organizing Map (SOM) implementation.
     """
-    def __init__(self, m: int, n: int, dim: int, initiate_method:str, learning_rate:float, neighbour_rad: int, distance_function:str, max_iter=None) -> None:
+
+    def __init__(self, m: int, n: int,
+                dim: int, initiate_method: str,
+                learning_rate: float, neighbour_rad: int,
+                distance_function: str, max_iter: Union[int, float] = np.inf
+                ) -> None:
         """
-        Initiate the main parameter of Self Organizing Matrix Clustering
+        Initialize the SOM.
 
         Args:
-            m (int): _description_
-            n (int): _description_
-            dim (int): _description_
-            initiate_method (str): _description_
-            max_iter (int): _description_
-            learning_rate (float): _description_
-            neighbour_rad (int): _description_
-            distance_function (str): _description_
-
-        Raises:
-            ValueError: _description_
-        
-        Overall Time Complexity: O(1)
+            m (int): Height of the matrix.
+            n (int): Width of the matrix.
+            dim (int): Input dimension of matrix.
+            initiate_method (str): Neurons initiation method.
+            learning_rate (float): Initial learning rate.
+            neighbour_rad (int): Initial neighbourhood radius.
+            distance_function (str): Distance function for BMU calculation.
+            max_iter (int, optional): Maximum number of iterations. Defaults to None.
         """
-        if learning_rate > 1.76:
-            raise ValueError("Learning rate should be less than 1.76")
-        if initiate_method not in INITIATION_METHOD_LIST:
-            raise ValueError("There is no method called {}".format(initiate_method))
-        if distance_function not in DISTANCE_METHOD_LIST:
-            raise ValueError("There is no method called {}".format(initiate_method))
-        
-        if not max_iter:
-            max_iter = np.inf
-        # initiate all the attributes
-        self.m = m
-        self.n = n
-        self.dim = dim
-        self.max_iter = max_iter
-        self.shape = (m,n,dim)
-        self.cur_learning_rate = learning_rate
-        self.initial_learning_rate = learning_rate
-        self._trained = False
-        self.init_method = initiate_method
-        self.dist_func = distance_function
-        self.cur_neighbour_rad = neighbour_rad
-        self.initial_neighbour_rad = neighbour_rad
-        self.neurons = None 
-        self.initial_neurons = None
-        
-    def initiate_plus_plus(self, X: np.ndarray):
-        """
-        Initiate the centroid value using kmeans++ algorithm
-        Args:
-            X (np.ndarray): Matrix of input data.
-        Returns:
-            np.ndarray: list of centroid for kmeans clustering.
+        validate_configuration(initiate_method, learning_rate, distance_function)
 
-        Overall Time Complexity: O(N*k*dim), k is number of cluster
-        """
+        self.m: int = m
+        self.n: int = n
+        self.dim: int = dim
+        self.shape: Tuple[int, int, int] = (m, n, dim)
+        self.max_iter: Union[int, float] = max_iter if max_iter is not None else np.inf
+        self.init_method: str = initiate_method
+        self.dist_func: str = distance_function
 
-        # initiate empty list of centroids
-        centroids = []
+        self.cur_learning_rate: float = learning_rate
+        self.initial_learning_rate: float = learning_rate
 
-        # choose a random data point as the first centroid
-        centroids.append(find_most_edge_point(X))
+        self.cur_neighbour_rad: float = neighbour_rad
+        self.initial_neighbour_rad: float = neighbour_rad
 
-        # initiate the number of choices
-        k = self.m * self.n
+        self.neurons: Union[np.ndarray] = np.ndarray([])
+        self.initial_neurons: Union[np.ndarray] = np.ndarray([])
+        self._trained: bool = False
 
-        # calculate the squared distances from each data point to the first centroid
-        dist_sq = np.sum((X - centroids[0])**2, axis=1)
+    def initiate_neuron(self, data: np.ndarray) -> np.ndarray:
+        """Initiate initial value of the neurons."""
+        min_val: float = data.min()
+        max_val: float = data.max()
 
-        # iterate k-1 times to fill the list of centroids
-        for _ in range(k - 1):
-            # choose the data point with the maximum squared distance as the next centroid
-            furthest_data_idx = np.argmax(dist_sq)
-            centroids.append(X[furthest_data_idx])
+        if self.init_method == "random":
+            return np.random.uniform(min_val, max_val, self.shape)
+        if self.init_method == "kde":
+            neurons: np.ndarray = initiate_kde(x=data, n_neurons=self.m * self.n)
+            return neurons.reshape(self.shape)
+        if self.init_method in ["kmeans", "kde_kmeans", "kmeans++"]:
+            model: KMeans = KMeans(n_clusters=(self.m * self.n), method=self.init_method)
+            model.fit(x=data)
+            return np.ndarray(np.sort(model.centroids, axis=0).reshape(self.shape))
+        if self.init_method == "SOM++":
+            plus_plus_neurons: np.ndarray = initiate_plus_plus(m = self.m, n = self.n, x = data)
+            return plus_plus_neurons.reshape(self.shape)
+        raise ValueError(f"Invalid initiation method: {self.init_method}")
 
-            # update the squared distances to the nearest centroid for each data point
-            dist_sq = np.minimum(dist_sq, np.sum((X - centroids[-1])**2, axis=1))
-
-        return np.array(centroids)
-    
-    def initiate_neuron(self, data: np.ndarray, min_val:float, max_val:float):
-        """Initiate initial value of the neurons
-
-        Args:
-            min_val (float): the minimum value of the data input
-            max_val (float): maximum value of the data input
-
-        Raises:
-            ValueError: There are no method named self.init_method or the method is not available yet
-
-        Returns:
-            list(): list of neurons to be initiate in self.neurons and self.initial_neurons
-            
-        Overall Time Complexity:
-            self.init_method == "random": O(C), C is m*n*dim
-            self.init_method == "kde": O(N*C), C is max(1/treshold, m*n*dim)
-            self.init_method == "kmeans": O(N*C), C is max(1/treshold, m*n*dim)
-            self.init_method == "kde_kmeans": O(N*C), C is max(1/treshold, m*n*dim)
-            self.init_method == "kmeans++": O(N*C), C is k*k*dim
-            self.init_method == "SOM++": O(N*C), C is k*k*dim
-        """
-        if self.init_method == "random" :
-            # number of step = self.dim * self.m * self.n --> O(m * n * dim)
-            return [[random_initiate(self.dim ,min_val=min_val, max_val=max_val) for j in range(self.m)] for i in range(self.n)]
-        elif self.init_method == "kde" :
-            neurons = initiate_kde(X=data, n_neurons=self.m*self.n)
-            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
-            return neurons
-        elif self.init_method == "kmeans":
-            model = KMeans(n_clusters = (self.m * self.n), method="random")
-            model.fit(X = data)
-            neurons = model.centroids
-            neurons = np.sort(neurons, axis=0)
-            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
-            return neurons
-        elif self.init_method == "kde_kmeans":
-            model = KMeans(n_clusters = (self.m * self.n), method="kde")
-            model.fit(X = data)
-            neurons = model.centroids
-            neurons = np.sort(neurons, axis=0)
-            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
-            return neurons
-        elif self.init_method == "kmeans++" :
-            model = KMeans(n_clusters = (self.m * self.n), method="kmeans++")
-            model.fit(X = data)
-            neurons = model.centroids
-            neurons = np.sort(neurons, axis=0)
-            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
-            return neurons
-        elif self.init_method == "SOM++" :
-            neurons = self.initiate_plus_plus(data)
-            neurons = np.reshape(neurons, (self.m, self.n, self.dim))
-            return neurons
-        else:
-            raise ValueError("There is no method named {}".format(self.init_method))
-    
-    def index_bmu(self, x: np.array):
-        """Find the index of best matching unit among all of neurons inside the matrix based on its euclidean distance
-
-        Args:
-            x (np.array): input array as comparison parameter
-
-        Returns:
-            tuple(): set of coordinates the best matching unit in (x,y) 
-        
-        Overall Time Complexity: O(m * n * dim)
-        """
-        neurons = np.reshape(self.neurons, (-1, self.dim)) # O(1)
+    def index_bmu(self, x: np.ndarray) -> Tuple[int, int]:
+        """Find the index of best matching unit among all neurons."""
+        neurons: np.ndarray = self.neurons.reshape(-1, self.dim)
+        distances: np.ndarray
         if self.dist_func == "euclidean":
             distances = np.linalg.norm(neurons - x, axis=1)
         elif self.dist_func == "cosine":
-            distances = 1 - np.dot(neurons, x) / (np.linalg.norm(neurons, axis=1) * np.linalg.norm(x))
-        min_index = np.argmin(distances)
-        return np.unravel_index(min_index, (self.m, self.n)) # O(1)
-    
-    def gaussian_neighbourhood(self, x1, y1, x2, y2):
-        """Represents gaussian function as the hyper parameter of updating weight of neurons
-        Args:
-            x1 (float): x coordinates of best matching unit
-            y1 (float): y coordinates of best matching unit
-            x2 (float): x coordinates of the neuron
-            y2 (float): y coordinates of the neuron
-        Returns:
-            float: return the evaluation of h(t) = a(t) * exp(-||r_c - r_i||^2/(2 * o(t)^2))
-    
-        Overall Time Complexity: O(1)
-        """
-        lr = self.cur_learning_rate
-        nr = self.cur_neighbour_rad
-        nr = max(nr, 1e-9)  # Avoid division by zero
-        dist_squared = (x1 - x2) ** 2 + (y1 - y2) ** 2
-        exp = math.exp(-0.5 * dist_squared / (nr * nr))
-        return lr * exp
-    
-    def update_neuron(self, x: np.array):
-        """Update neurons based on the input data in each iteration
-        Args:
-            x (np.array): the input value from data
-        
-        Overall Complexity: O(m * n * dim)
-        """
-        # find index for the best matching unit index --> O(m * n * dim)
-        col_bmu, row_bmu = self.index_bmu(x)
-    
-        # iterates through the matrix --> O(m * n * dim)
-        for cur_col, col in enumerate(self.neurons):
-            for cur_row, cur_weight in enumerate(col):
-                # calculate the new weight, update only if the weight is > 0
-                h = self.gaussian_neighbourhood(col_bmu, row_bmu, cur_col, cur_row)
+            distances = (1 - np.dot(neurons, x) /
+                         (np.linalg.norm(neurons, axis=1) * np.linalg.norm(x)))
+        min_index: int = int(np.argmin(distances))
+        return tuple(np.unravel_index(min_index, (self.m, self.n)))
+
+    def gaussian_neighbourhood(self, x1: int, y1: int, x2: int, y2: int) -> float:
+        """Calculate the Gaussian neighbourhood function."""
+        omega: float = 1e-9
+        lr: float = self.cur_learning_rate
+        nr: float = max(self.cur_neighbour_rad, omega)  # Avoid division by zero
+        dist_squared: int = (x1 - x2) ** 2 + (y1 - y2) ** 2
+        return lr * math.exp(-0.5 * dist_squared / (nr * nr))
+
+    def update_neuron(self, x: np.ndarray) -> None:
+        """Update neurons based on the input data."""
+        index_bmu = self.index_bmu(x=x)
+        col_bmu: int = index_bmu[0]
+        row_bmu: int = index_bmu[1]
+
+        for cur_col in range(self.m):
+            for cur_row in range(self.n):
+                h: float = self.gaussian_neighbourhood(col_bmu, row_bmu, cur_col, cur_row)
                 if h > 0:
                     if self.dist_func == "euclidean":
-                        # new weight = cur weight + moving weight * distance
-                        self.neurons[cur_col][cur_row] = cur_weight + h * (x - cur_weight)
+                        self.neurons[cur_col, cur_row] += h * (x - self.neurons[cur_col, cur_row])
                     elif self.dist_func == "cosine":
-                        angle = cos_distance(x, cur_weight)
-                        self.neurons[cur_col][cur_row] = [i + j * h for i, j in zip([math.cos(angle) * i for i in cur_weight], cur_weight)]
-    
-    def worker(self, X, epoch, shuffle, verbose, shared_neurons, shared_learning_rate, shared_neighbour_rad):
-        neurons = np.frombuffer(shared_neurons.get_obj()).reshape((self.m, self.n, self.dim))
-        cur_learning_rate = shared_learning_rate.value
-        cur_neighbour_rad = shared_neighbour_rad.value
-        
-        n_sample = X.shape[0]
-        total_iteration = min(epoch * n_sample, self.max_iter)
-        
-        global_iter_counter = 1
-        for i in range(epoch):
-            if global_iter_counter > self.max_iter:
-                break
-            
+                        angle: float = cos_distance(x, self.neurons[cur_col, cur_row])
+                        self.neurons[cur_col, cur_row] += (h *
+                                                           (np.cos(angle) *
+                                                            self.neurons[cur_col, cur_row]
+                                                            - self.neurons[cur_col, cur_row]))
+
+    def _worker(self, x: np.ndarray, epoch: int, shuffle: bool) -> np.ndarray:
+        """Worker function for parallel processing."""
+        neurons: np.ndarray = self.neurons.copy()
+        n_sample: int = x.shape[0]
+        total_iteration: int = int(min(epoch * n_sample, self.max_iter))
+
+        for epoch_num in range(epoch):
             if shuffle:
-                np.random.shuffle(X)
-            
-            for idx in X:
-                if global_iter_counter > self.max_iter:
+                np.random.shuffle(x)
+
+            for idx, data_point in enumerate(x):
+                global_iter: int = epoch_num * n_sample + idx + 1
+                if global_iter > self.max_iter:
                     break
-                
-                # Update neuron using the shared neurons array
-                self.update_neuron(idx)
-                
-                global_iter_counter += 1
-                power = global_iter_counter / total_iteration
-                cur_learning_rate = self.initial_learning_rate ** (1 - power) * math.exp(-1 * global_iter_counter / self.initial_learning_rate)
-                cur_neighbour_rad = self.initial_neighbour_rad ** (1 - power) * math.exp(-1 * global_iter_counter / self.initial_neighbour_rad)
-        
-        # Update the shared neurons array with the final state
-        shared_neurons[:] = neurons.flatten()
-        
-    def fit_multi_process(self, X: np.ndarray, epoch: int, shuffle=True, verbose=True, num_processes=int(multiprocessing.cpu_count()*0.9)):
-        if not self._trained:
-            self.neurons = self.initiate_neuron(data=X, min_val=X.min(), max_val=X.max())
-            self.initial_neurons = self.neurons
-    
-        if X.shape[1] != self.dim:
-            raise ValueError("X.shape[1] should be the same as self.dim, but found {}".format(X.shape[1]))
-        
-        # Convert self.neurons to a NumPy array
-        neurons_array = np.array(self.neurons)
-        
-        # Create shared arrays for neurons, learning rate, and neighbour radius
-        shared_neurons = multiprocessing.Array('d', neurons_array.flatten())
-        shared_learning_rate = multiprocessing.Value('d', self.initial_learning_rate)
-        shared_neighbour_rad = multiprocessing.Value('d', self.initial_neighbour_rad)
-        
-        # Split the data into chunks for each process
-        chunk_size = X.shape[0] // num_processes
-        chunks = [X[i:i+chunk_size] for i in range(0, X.shape[0], chunk_size)]
-        
-        # Create a list to store the processes
-        processes = []
-        
-        # Create and start the processes
-        for i in range(num_processes):
-            process = multiprocessing.Process(target=self.worker, args=(chunks[i], epoch, shuffle, verbose, shared_neurons, shared_learning_rate, shared_neighbour_rad))
-            processes.append(process)
-            process.start()
-        
-        # Wait for all processes to finish
-        for process in processes:
-            process.join()
-        
-        # Update the neurons with the final state from the shared array
-        self.neurons = np.frombuffer(shared_neurons.get_obj()).reshape((self.m, self.n, self.dim)).tolist()
-        
-        self._trained = True
-    
-    def fit(self, X: np.ndarray, epoch: int, shuffle=True, verbose=True, use_multiprocessing=False):
-        """Tune the neurons to learn the data
-        Args:
-            X (np.ndarray): Input data
-            epoch (int): number of training iteration
-            shuffle (bool, optional): the initate data to be evaluate in the matrix.
-                Defaults to True.
-        Raises:
-            SyntaxError: SOM._trained() already true, which the model have been trained
-            ValueError: The length of data columns is different with the length of the dimension
-    
-        Return:
-            None: fit the neurons to the data
-        
-        Overall Time Complexity: O(epoch * N * N * C) -> worst case
+
+                # Update neuron
+                index_bmu = self.index_bmu(data_point)
+                col_bmu : int = index_bmu[0]
+                row_bmu : int = index_bmu[1]
+
+                for cur_col in range(self.m):
+                    for cur_row in range(self.n):
+                        h: float = self.gaussian_neighbourhood(col_bmu, row_bmu, cur_col, cur_row)
+                        if h > 0:
+                            if self.dist_func == "euclidean":
+                                neurons[cur_col, cur_row] += (h *
+                                                              (data_point -
+                                                               neurons[cur_col, cur_row]))
+                            elif self.dist_func == "cosine":
+                                angle: float = cos_distance(data_point, neurons[cur_col, cur_row])
+                                neurons[cur_col, cur_row] += (h *
+                                                              (np.cos(angle) *
+                                                               neurons[cur_col, cur_row]
+                                                               - neurons[cur_col, cur_row]))
+
+                # Update learning rate and neighbourhood radius
+                power: float = global_iter / total_iteration
+                self.cur_learning_rate = (self.initial_learning_rate *
+                                          (1 - power)
+                                          * math.exp(-global_iter / self.initial_learning_rate))
+                self.cur_neighbour_rad = (self.initial_neighbour_rad *
+                                          (1 - power) *
+                                          math.exp(-global_iter / self.initial_neighbour_rad))
+
+        return neurons
+
+    def fit(self, x: np.ndarray, epoch: int,
+            shuffle: bool = True,
+            verbose: bool = True, n_jobs: int = -1) -> None:
         """
-        if use_multiprocessing:
-            self.fit_multi_process(X=X, epoch=epoch, shuffle=shuffle, verbose=verbose)
-        if not self._trained:
-            self.neurons = self.initiate_neuron(data=X, min_val=X.min(), max_val=X.max())  # O(m * n * dim)
-            self.initial_neurons = self.neurons
-    
-        if X.shape[1] != self.dim:
-            raise ValueError("X.shape[1] should be the same as self.dim, but found {}".format(X.shape[1]))
-    
-        n_sample = X.shape[0]
-        total_iteration = min(epoch * n_sample, self.max_iter)
-    
-        global_iter_counter = 1
-        for i in tqdm(range(epoch), disable=not verbose, desc=f'evaluation score: {compare_distribution(X, self.cluster_center_)}'):
-            if global_iter_counter > self.max_iter:
-                break
-        
-            if shuffle:
-                np.random.shuffle(X)
-        
-            for idx in X:
-                if global_iter_counter > self.max_iter:
-                    break
-            
-                self.update_neuron(idx)  # O(m * n * dim)
-                global_iter_counter += 1
-                power = global_iter_counter / total_iteration
-                self.cur_learning_rate = self.initial_learning_rate ** (1 - power) * math.exp(-1 * global_iter_counter / self.initial_learning_rate)
-                self.cur_neighbour_rad = self.initial_neighbour_rad ** (1 - power) * math.exp(-1 * global_iter_counter / self.initial_neighbour_rad)
-        
-        self._trained = True
-    
-    def predict(self, X: np.ndarray):
-        """Label the data based on the neurons using best matching unit
-        Args:
-            X (np.ndarray): input data to be predicted
-        Raises:
-            NotImplementedError: The model has not been trained yet, call SOM.fit() first
-        Returns:
-            np.array(): array of the labels of each data
-            
-        Overall Time Complexity: O(N * m * n * dim)
-        """
-        if not self._trained:
-            raise NotImplementedError("SOM object should call fit() before predict()")
-        
-        assert len(X.shape) == 2, f'X should have two dimensions, not {len(X.shape)}'
-        assert X.shape[1] == self.dim, f'This SOM has dimension {self.dim}. Received input with dimension {X.shape[1]}'
-        
-        labels = np.array([self.index_bmu(x) for x in X])
-        labels = self.m * labels[:, 0] + labels[:, 1]
-        return labels
-    
-    def fit_predict(self, X : np.ndarray, epoch : int, shuffle=True, verbose=True, use_multiprocessing=False):
-        """Fit the model based on the data and return the prediciton of  the data
+        Fit the SOM to the input data.
 
         Args:
-            X (np.ndarray): Input data
-            epoch (int): number of training iteration 
-            shuffle (bool, optional): the initate data to be evaluate in the matrix. 
-                Defaults to True.
-        
-        Returns:
-            np.array(): the prediciton of each data
-            
-        Overall Time Complexity: O(epoch * N * m * n * dim)
+            X (np.ndarray): Input data.
+            epoch (int): Number of training iterations.
+            shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
+            verbose (bool, optional): Whether to show progress bar. Defaults to True.
+            n_jobs (int, optional): Number of parallel jobs. Defaults to -1 (all available cores).
         """
-        self.fit(X = X, epoch = epoch, shuffle=shuffle, verbose=verbose, use_multiprocessing=use_multiprocessing) # O(epoch * N * m * n * dim)
-        return self.predict(X=X) # O(N * m * n * dim)
-    
-    def evaluate(self, X:np.array, y_true:np.array=None, method:List[str]=["silhouette"]):
-        set_A = set(method)
-        set_B = set(EVAL_METHOD_LIST)
-        if not set_A.issubset(set_B):
-            raise ValueError(f'{method} is not found in method list')
-        
-        pred = self.predict(X)
+        if not self._trained:
+            self.neurons = self.initiate_neuron(data=x)
+            self.initial_neurons = self.neurons.copy()
+
+        if x.shape[1] != self.dim:
+            raise ValueError(f"X.shape[1] should be {self.dim}, but found {x.shape[1]}")
+
+        # Split data for parallel processing
+        n_splits: int = n_jobs if n_jobs > 0 else joblib.cpu_count()
+        data_splits: List[np.ndarray] = np.array_split(x, n_splits)
+
+        # Parallel processing
+        results: List[np.ndarray] = Parallel(n_jobs=n_jobs, verbose=verbose)(
+            delayed(self._worker)(split, epoch, shuffle)
+            for split in data_splits
+        )
+
+        # Combine results
+        self.neurons = np.mean(results, axis=0)
+        self._trained = True
+
+    def predict(self, x: np.ndarray) -> np.ndarray:
+        """
+        Predict cluster labels for the input data.
+
+        Args:
+            X (np.ndarray): Input data.
+
+        Returns:
+            np.ndarray: Predicted cluster labels.
+        """
+        if not self._trained:
+            raise RuntimeError("SOM must be fitted before predicting")
+
+        assert len(x.shape) == 2, f'X should have two dimensions, not {len(x.shape)}'
+        assert x.shape[1] == self.dim, f'This SOM has dimension {self.dim} but Received {x.shape[1]}'
+
+        labels: np.ndarray = np.array([self.index_bmu(i) for i in x])
+        return self.m * labels[:, 0] + labels[:, 1]
+
+    def fit_predict(self, x: np.ndarray, epoch: int,
+                    shuffle: bool = True, verbose: bool = True,
+                    n_jobs: int = -1) -> np.ndarray:
+        """
+        Fit the SOM and predict cluster labels for the input data.
+
+        Args:
+            X (np.ndarray): Input data.
+            epoch (int): Number of training iterations.
+            shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
+            verbose (bool, optional): Whether to show progress bar. Defaults to True.
+            n_jobs (int, optional): Number of parallel jobs. Defaults to -1 (all available cores).
+
+        Returns:
+            np.ndarray: Predicted cluster labels.
+        """
+        self.fit(x=x, epoch=epoch, shuffle=shuffle, verbose=verbose, n_jobs=n_jobs)
+        return self.predict(x=x)
+
+    def evaluate(self, x: np.ndarray,
+                 method: List[str]) -> Union[List[float], dict]:
+        """
+        Evaluate the SOM clustering.
+
+        Args:
+            X (np.ndarray): Input data.
+            y_true (np.ndarray, optional): True labels. Defaults to None.
+            method (List[str], optional): Evaluation methods. Defaults to ["silhouette"].
+
+        Returns:
+            Union[List[float], dict]: Evaluation scores.
+        """
+        if not set(method).issubset(set(EVAL_METHOD_LIST)):
+            raise ValueError(f'Invalid evaluation method(s): {set(method) - set(EVAL_METHOD_LIST)}')
+
+        pred: np.ndarray = self.predict(x)
+        # Map method names to their corresponding scoring functions
+        score_functions = {
+            "silhouette": silhouette_score,
+            "davies_bouldin": davies_bouldin_index,
+            "calinski_harabasz": calinski_harabasz_score,
+            "dunn": dunn_index
+        }
         if "all" not in method:
-            evals = []
-            for m in method:
-                if method == "silhouette":
-                    evals.append(silhouette_score(X=X, labels=pred))
-                if method == "davies_bouldin":
-                    evals.append(davies_bouldin_index(X=X, labels=pred))
-                if method == "calinski_harabasz":
-                    evals.append(calinski_harabasz_score(X=X, labels=pred))
-                if method == "dunn":
-                    evals.append(dunn_index(X=X, labels=pred))
-        else:
-            return {"silhouette": silhouette_score(X=X, labels=pred),
-                    "davies_bouldin": davies_bouldin_index(X=X, labels=pred), 
-                    "calinski_harabasz": calinski_harabasz_score(X=X, labels=pred),
-                    "dunn": dunn_index(X=X, labels=pred),
-                    "bscore_precision": bcubed_precision(self.cluster_center_, y_true),
-                    "bscore_recall": bcubed_recall(self.cluster_center_, y_true)
-                    }
-    
-    @property
-    def cluster_center_(self):
-        """Generate the list of all neurons
+            return [
+                score_functions[m](x=x, labels=pred)
+                for m in method if m in ["silhouette", "davies_bouldin",
+                                         "calinski_harabasz", "dunn"]
+            ]
+        return {
+            "silhouette": silhouette_score(x=x, labels=pred),
+            "davies_bouldin": davies_bouldin_index(x=x, labels=pred),
+            "calinski_harabasz": calinski_harabasz_score(x=x, labels=pred),
+            "dunn": dunn_index(x=x, labels=pred),
+            # !!! need to be fix later
+            #"bscore_precision": bcubed_precision(self.cluster_center_, y_true),
+            #"bscore_recall": bcubed_recall(self.cluster_center_, y_true)
+        }
 
-        Returns:
-            np.ndarray(): list of all neurons with shape (m*n, dim)
-        """
-        return np.reshape(self.neurons, (-1, self.dim))
-    
-    def save(self, path:str):
+    @property
+    def cluster_center_(self) -> np.ndarray:
+        """Get the cluster centers."""
+        return self.neurons.reshape(-1, self.dim)
+
+    def save(self, path: str) -> None:
+        """Save the SOM model to a file."""
+        with open(path, 'wb') as file:
+            pickle.dump(self, file)
+
+    @classmethod
+    def load(cls, path: str) -> 'SOM':
+        """Load a SOM model from a file."""
         with open(path, 'rb') as file:
-            return pickle.dump(self, file)
-            
-    def load(self, path:str):
-        with open(path, 'rb') as file:
-            return pickle.load(self, file)
+            return pickle.load(file)
