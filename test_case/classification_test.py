@@ -51,4 +51,4 @@ def class_test():
     assert len(y_pred_loaded) == len(X_test), "Prediction length mismatch for loaded model"
 
 if __name__ == "__main__":
-    test_som_functionality()
+    class_test()
