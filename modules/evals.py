@@ -81,6 +81,8 @@ from typing import Tuple
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
+# Unsupervised learning evaluation function
+
 def silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
     """
     Calculate the Silhouette Coefficient for a clustering result.
@@ -273,3 +275,87 @@ def bcubed_precision_recall(clusters: np.ndarray, labels: np.ndarray) -> Tuple[f
     bcubed_recall = recall_sum / n
 
     return bcubed_precision, bcubed_recall
+
+
+# supervised learning function
+def accuracy(y_true, y_pred):
+    """
+    Calculate the accuracy of predictions.
+
+    Parameters:
+    y_true (list or array): True labels
+    y_pred (list or array): Predicted labels
+
+    Returns:
+    float: Accuracy as a percentage
+    """
+    correct = 0
+    total = len(y_true)
+
+    for true, pred in zip(y_true, y_pred):
+        if true == pred:
+            correct += 1
+
+    accuracy = correct / total * 100
+    return accuracy
+
+def f1_score(y_true, y_pred):
+    """
+    Calculate the F1 score of predictions.
+
+    Parameters:
+    y_true (list or array): True labels
+    y_pred (list or array): Predicted labels
+
+    Returns:
+    float: F1 score
+    """
+    tp = 0  # True positives
+    fp = 0  # False positives
+    fn = 0  # False negatives
+
+    for true, pred in zip(y_true, y_pred):
+        if true == 1 and pred == 1:
+            tp += 1
+        elif true == 0 and pred == 1:
+            fp += 1
+        elif true == 1 and pred == 0:
+            fn += 1
+
+    if tp + fp == 0 or tp + fn == 0:
+        return 0.0
+
+    precision = tp / (tp + fp)
+    recall = tp / (tp + fn)
+
+    if precision + recall == 0:
+        return 0.0
+
+    f1_score = 2 * (precision * recall) / (precision + recall)
+    return f1_score
+
+def recall(y_true, y_pred):
+    """
+    Calculate the recall of predictions.
+
+    Parameters:
+    y_true (list or array): True labels
+    y_pred (list or array): Predicted labels
+
+    Returns:
+    float: Recall
+    """
+    tp = 0  # True positives
+    fn = 0  # False negatives
+
+    for true, pred in zip(y_true, y_pred):
+        if true == 1 and pred == 1:
+            tp += 1
+        elif true == 1 and pred == 0:
+            fn += 1
+
+    if tp + fn == 0:
+        return 0.0
+
+    recall = tp / (tp + fn)
+    return recall

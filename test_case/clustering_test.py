@@ -2,7 +2,7 @@ import numpy as np
 import logging
 from sklearn.datasets import load_iris
 from sklearn.preprocessing import StandardScaler
-from modules.som import SOM  # Replace 'som_module' with the actual module name
+from modules.som import SOM 
 
 # Configure logging to write to a file
 logging.basicConfig(
@@ -97,8 +97,9 @@ def test_with_iris():
     scores = som.evaluate(X_scaled, method=["silhouette", "davies_bouldin", "calinski_harabasz", "dunn"])
     logging.info(f"Evaluation scores for Iris dataset: {scores}")
 
-def main():
+def clust_test():
     # Run all tests
+    logging.info("Testing SOM Clustering Model")
     logging.info("Testing initiate_neuron...")
     test_initiate_neuron()
 
