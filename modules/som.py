@@ -99,9 +99,9 @@ class SOM:
         if self.init_method in ["kmeans", "kde_kmeans", "kmeans++"]:
             model: KMeans = KMeans(n_clusters=(self.m * self.n), method=self.init_method)
             model.fit(x=data)
-            return np.ndarray(np.sort(model.centroids, axis=0).reshape(self.shape))
+            return np.array(np.array(model.centroids).reshape(self.shape))
         if self.init_method == "SOM++":
-            plus_plus_neurons: np.ndarray = initiate_plus_plus(m = self.m, n = self.n, x = data)
+            plus_plus_neurons: np.array = initiate_plus_plus(m = self.m, n = self.n, x = data)
             return plus_plus_neurons.reshape(self.shape)
         raise ValueError(f"Invalid initiation method: {self.init_method}")
 
