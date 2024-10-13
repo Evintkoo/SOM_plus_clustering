@@ -156,7 +156,7 @@ def find_local_maxima(kde: Callable[[np.ndarray], float], x: np.ndarray,
 
 def initiate_kde(x: np.ndarray, n_neurons: int) -> np.ndarray:
     """
-    Initiates KDE by finding local maxima and selecting a subset of neurons.
+    Initiates KDE by finding local maxima and selecting a subset of neurons based on the furthest distance.
 
     Args:
         X: A numpy array of shape (n_samples, n_features) representing the dataset.
@@ -171,6 +171,33 @@ def initiate_kde(x: np.ndarray, n_neurons: int) -> np.ndarray:
     kde: Callable[[np.ndarray], float] = multivariate_kde(x, scotts_rule(x))
     local_max: np.ndarray = find_local_maxima(kde, x)
     max_neurons: int = local_max.shape[0]
+    
     if max_neurons <= n_neurons:
         raise ValueError(f"Maximum number of neurons is {max_neurons}")
-    return local_max[np.random.choice(max_neurons, size=n_neurons, replace=False)]
+    
+    # Select the first neuron randomly
+    selected = [np.random.choice(max_neurons)]
+    
+    # Boolean mask to keep track of selected neurons
+    selected_mask = np.zeros(max_neurons, dtype=bool)
+    selected_mask[selected[0]] = True
+    
+    # Precompute all pairwise distances (squared distances to avoid costly sqrt operations)
+    dist_matrix = np.sum((local_max[:, np.newaxis, :] - local_max[np.newaxis, :, :]) ** 2, axis=-1)
+    
+    # Track the minimum distance to the selected set for each unselected point
+    min_dist_to_selected = dist_matrix[selected[0]]
+    
+    for _ in range(1, n_neurons):
+        # Find the unselected point with the maximum minimum distance to selected points
+        unselected_indices = np.where(~selected_mask)[0]
+        next_neuron = unselected_indices[np.argmax(min_dist_to_selected[unselected_indices])]
+        
+        # Mark this neuron as selected
+        selected.append(next_neuron)
+        selected_mask[next_neuron] = True
+        
+        # Update the minimum distances to the selected points
+        min_dist_to_selected = np.minimum(min_dist_to_selected, dist_matrix[next_neuron])
+    
+    return local_max[selected]
