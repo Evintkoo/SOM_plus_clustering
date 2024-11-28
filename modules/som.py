@@ -108,7 +108,11 @@ class SOM:
             neurons : np.array = initiate_zero(P = self.m * self.n, Q = self.dim)
             return neurons.reshape(self.shape)
         if self.init_method == "he":
-            neurons : np.array = initiate_he()
+            neurons : np.array = initiate_he(input_dim=self.dim, output_dim=self.m*self.n)
+            return neurons.reshape(self.shape)
+        if self.init_method == "naive_sharding":
+            neurons : np.array = initiate_naive_sharding(X=data, k=self.m*self.n)
+            return neurons.reshape(self.shape)
         raise ValueError(f"Invalid initiation method: {self.init_method}")
 
     def index_bmu(self, x: np.ndarray) -> Tuple[int, int]:
