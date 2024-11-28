@@ -9,6 +9,7 @@ from typing import List, Tuple, Union
 import numpy as np
 import joblib
 from joblib import Parallel, delayed
+from modules.initialization import initiate_naive_sharding, initiate_zero, initiate_he
 
 from .evals import (
     silhouette_score, davies_bouldin_index, calinski_harabasz_score,
@@ -100,9 +101,14 @@ class SOM:
             model: KMeans = KMeans(n_clusters=(self.m * self.n), method=self.init_method)
             model.fit(x=data)
             return np.array(np.array(model.centroids).reshape(self.shape))
-        if self.init_method == "SOM++":
+        if self.init_method == "som++":
             plus_plus_neurons: np.array = initiate_plus_plus(m = self.m, n = self.n, x = data)
             return plus_plus_neurons.reshape(self.shape)
+        if self.init_method == "zero":
+            neurons : np.array = initiate_zero(P = self.m * self.n, Q = self.dim)
+            return neurons.reshape(self.shape)
+        if self.init_method == "he":
+            neurons : np.array = initiate_he()
         raise ValueError(f"Invalid initiation method: {self.init_method}")
 
     def index_bmu(self, x: np.ndarray) -> Tuple[int, int]:
