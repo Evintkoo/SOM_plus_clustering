@@ -9,7 +9,7 @@ from typing import List, Tuple, Union
 import numpy as np
 import joblib
 from joblib import Parallel, delayed
-from modules.initialization import initiate_naive_sharding, initiate_zero, initiate_he
+from .initialization import *
 
 from .evals import (
     silhouette_score, davies_bouldin_index, calinski_harabasz_score,
@@ -113,6 +113,13 @@ class SOM:
         if self.init_method == "naive_sharding":
             neurons : np.array = initiate_naive_sharding(X=data, k=self.m*self.n)
             return neurons.reshape(self.shape)
+        if self.init_method == "lecun":
+            neurons : np.array = initiate_lecun(input_shape=self.dim, output_shape=self.m * self.n)
+            return neurons.reshape(self.shape)
+        if self.init_method == "lsuv":
+            neurons : np.array = initiate_lsuv(input_dim=self.dim, output_dim=self.m*self.n, X_batch=data)
+            return neurons.reshape(self.shape)
+            
         raise ValueError(f"Invalid initiation method: {self.init_method}")
 
     def index_bmu(self, x: np.ndarray) -> Tuple[int, int]:

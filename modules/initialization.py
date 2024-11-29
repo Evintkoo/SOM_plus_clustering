@@ -87,9 +87,44 @@ def initiate_he(input_dim, output_dim):
     weights = np.random.randn(output_dim, input_dim) * stddev  # Random weights
     return weights
 
-if __name__ == "__main__":
-    # Example Usage:
-    P = 3  # Input size
-    Q = 4  # Output size
-    W = zero_initialization_single_layer(P, Q)
-    print(W)
+def initiate_lecun(input_shape, output_shape):
+    fan_in = input_shape  # Number of input units
+    stddev = np.sqrt(1.0 / fan_in)
+    return np.random.normal(loc=0.0, scale=stddev, size=(input_shape, output_shape))
+
+def svd_orthonormal(shape):
+    """
+    Generate an orthonormal matrix using Singular Value Decomposition (SVD).
+    """
+    if len(shape) != 2:
+        raise ValueError("Shape must have exactly 2 dimensions (input_dim, output_dim).")
+    a = np.random.standard_normal(shape)
+    u, _, v = np.linalg.svd(a, full_matrices=False)
+    return u if u.shape == shape else v
+
+def initiate_lsuv(input_dim, output_dim, X_batch, tol=0.1, max_iter=10):
+    """
+    Initialize weights using LSUV initialization.
+
+    Parameters:
+    - input_dim: Number of input units.
+    - output_dim: Number of output units.
+    - X_batch: Batch of input data for variance adjustment.
+    - tol: Tolerance for variance convergence.
+    - max_iter: Maximum number of iterations for variance adjustment.
+
+    Returns:
+    - Initialized weight matrix with LSUV.
+    """
+    # Step 1: Initialize weights with orthonormal matrix
+    weights = svd_orthonormal((input_dim, output_dim))
+    
+    # Step 2: Iteratively adjust weights to achieve unit variance
+    for _ in range(max_iter):
+        activations = np.dot(X_batch, weights)  # Compute layer activations
+        variance = np.var(activations)
+        if abs(variance - 1.0) < tol:
+            break
+        weights /= np.sqrt(variance)
+    
+    return weights
