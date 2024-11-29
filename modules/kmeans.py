@@ -45,15 +45,15 @@ Module Dependencies:
     `random_initiate` and `euc_distance`.
 """
 
-
 from typing import List, Optional
 import random
 import numpy as np
+from joblib import Parallel, delayed
 from .utils import random_initiate, euc_distance
 
 class KMeans:
     """
-    KMeans clustering algorithm.
+    KMeans clustering algorithm with parallel computing support.
 
     Attributes:
         n_clusters (int): Number of centroids.
@@ -75,12 +75,13 @@ class KMeans:
         self._trained: bool = False
         self.method: str = method
 
-    def initiate_plus_plus(self, x: np.ndarray) -> List[np.ndarray]:
+    def initiate_plus_plus(self, x: np.ndarray, n_jobs: int) -> List[np.ndarray]:
         """
         Initialize centroids using the KMeans++ algorithm.
 
         Args:
-            X (np.ndarray): Input data matrix.
+            x (np.ndarray): Input data matrix.
+            n_jobs (int): Number of parallel jobs.
 
         Returns:
             List[np.ndarray]: List of centroids for KMeans clustering.
@@ -89,61 +90,70 @@ class KMeans:
         k: int = self.n_clusters
 
         for _ in range(k - 1):
-            dist_arr: List[float] = [
-                min(euc_distance(i, c) ** 2 for c in centroids) for i in x
-            ]
+            # Parallelize distance calculation
+            dist_arr: List[float] = Parallel(n_jobs=n_jobs)(
+                delayed(lambda i, centroids: min(euc_distance(i, c) ** 2 for c in centroids))(i, centroids)
+                for i in x
+            )
             furthest_data: np.ndarray = x[np.argmax(dist_arr)]
             centroids.append(furthest_data)
 
         return centroids
 
-    def init_centroids(self, x: np.ndarray) -> None:
+    def init_centroids(self, x: np.ndarray, n_jobs: int) -> None:
         """
         Initialize centroids for KMeans clustering.
 
         Args:
-            X (np.ndarray): Input data matrix.
+            x (np.ndarray): Input data matrix.
+            n_jobs (int): Number of parallel jobs.
 
         Raises:
             ValueError: If the initialization method is not recognized.
         """
         if self.method == "random":
-            self.centroids = [
-                random_initiate(dim=x.shape[1], min_val=x.min(), max_val=x.max())
+            self.centroids = Parallel(n_jobs=n_jobs)(
+                delayed(random_initiate)(dim=x.shape[1], min_val=x.min(), max_val=x.max())
                 for _ in range(self.n_clusters)
-            ]
+            )
         elif self.method == "kmeans++":
-            self.centroids = self.initiate_plus_plus(x)
+            self.centroids = self.initiate_plus_plus(x, n_jobs)
         else:
             raise ValueError(f"Unrecognized method: {self.method}")
 
-    def update_centroids(self, x: np.ndarray) -> None:
+    def update_centroids(self, x: np.ndarray, n_jobs: int) -> None:
         """
-        Update the centroid values.
+        Update the centroid values in a parallel manner.
 
         Args:
-            x (np.ndarray): Input data point.
+            x (np.ndarray): Input data matrix.
+            n_jobs (int): Number of parallel jobs.
         """
         if self.centroids is None or x is None:
             raise ValueError("Centroids or X have not been initiated.")
 
-        distances: List[float] = [euc_distance(x, c) for c in self.centroids]
+        # Parallelize distance calculation
+        distances: List[float] = Parallel(n_jobs=n_jobs)(
+            delayed(euc_distance)(x, c) for c in self.centroids
+        )
+        
         # Find the index of the closest centroid
-        closest_centroid_index: int = int(np.argmin(distances))  # Convert to Python int
+        closest_centroid_index: int = int(np.argmin(distances))
+        
         # Get the closest centroid using the index
         closest_centroid: np.ndarray = self.centroids[closest_centroid_index]
-
 
         # Update centroid
         updated_centroid: np.ndarray = np.mean([closest_centroid, x], axis=0)
         self.centroids[closest_centroid_index] = updated_centroid
 
-    def fit(self, x: np.ndarray, epochs: int = 3000, shuffle: bool = True) -> None:
+    def fit(self, x: np.ndarray, n_jobs: int = -1, epochs: int = 3000, shuffle: bool = True) -> None:
         """
         Train the KMeans model to find the best centroid values.
 
         Args:
-            X (np.ndarray): Input data matrix.
+            x (np.ndarray): Input data matrix.
+            n_jobs (int, optional): Number of parallel jobs. Defaults to -1 (all cores).
             epochs (int, optional): Number of training iterations. Defaults to 3000.
             shuffle (bool, optional): Whether to shuffle the data. Defaults to True.
 
@@ -154,33 +164,37 @@ class KMeans:
             raise RuntimeError("Cannot fit an already trained model.")
 
         # Initialize centroids
-        self.init_centroids(x)
+        self.init_centroids(x, n_jobs)
 
         # Train the model
         for _ in range(epochs):
             if shuffle:
                 np.random.shuffle(x)
 
-            for i in x:
-                self.update_centroids(i)
+            # Parallelize centroid updates
+            Parallel(n_jobs=n_jobs)(
+                delayed(self.update_centroids)(i, n_jobs) for i in x
+            )
 
         self._trained = True
 
-    def predict(self, x: np.ndarray) -> np.ndarray:
+    def predict(self, x: np.ndarray, n_jobs: int = -1) -> np.ndarray:
         """
-        Predict the cluster number for each data point in the input matrix.
+        Predict the cluster number for each data point in the input matrix using parallel processing.
 
         Args:
             x (np.ndarray): Input data matrix.
+            n_jobs (int, optional): Number of parallel jobs. Defaults to -1.
 
         Returns:
             np.ndarray: Cluster labels for each data point.
         """
-        # Compute the distance of each data point to all centroids and find the closest centroid
-        cluster_labels = np.array([
-            int(np.argmin([euc_distance(i, c) for c in self.centroids]))
-            for i in x
-        ])
+        # Compute the distance of each data point to all centroids in parallel
+        cluster_labels = np.array(
+            Parallel(n_jobs=n_jobs)(
+                delayed(lambda i: int(np.argmin([euc_distance(i, c) for c in self.centroids])))(i)
+                for i in x
+            )
+        )
         
         return cluster_labels
-
