@@ -116,6 +116,9 @@ class SOM:
         if self.init_method == "lecun":
             neurons : np.array = initiate_lecun(input_shape=self.dim, output_shape=self.m * self.n)
             return neurons.reshape(self.shape)
+        if self.init_method == "lsuv":
+            neurons : np.array = initiate_lsuv(input_dim=self.dim, output_dim=self.m*self.n, X_batch=data)
+            return neurons.reshape(self.shape)
             
         raise ValueError(f"Invalid initiation method: {self.init_method}")
 
