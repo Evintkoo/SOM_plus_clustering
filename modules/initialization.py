@@ -87,9 +87,7 @@ def initiate_he(input_dim, output_dim):
     weights = np.random.randn(output_dim, input_dim) * stddev  # Random weights
     return weights
 
-if __name__ == "__main__":
-    # Example Usage:
-    P = 3  # Input size
-    Q = 4  # Output size
-    W = zero_initialization_single_layer(P, Q)
-    print(W)
+def initiate_lecun(input_shape, output_shape):
+    fan_in = input_shape  # Number of input units
+    stddev = np.sqrt(1.0 / fan_in)
+    return np.random.normal(loc=0.0, scale=stddev, size=(input_shape, output_shape))
