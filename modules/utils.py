@@ -71,28 +71,29 @@ Dependencies:
 
 import math
 from typing import List
-import numpy as np
+import cupy as cp
 
-def find_most_edge_point(points: np.ndarray) -> np.ndarray:
+def find_most_edge_point(points: cp.ndarray) -> cp.ndarray:
     """
     Find the point farthest from the center of the dataset.
 
     Args:
-        points (np.ndarray): An array of points.
+        points (cp.ndarray): An array of points.
 
     Returns:
-        np.ndarray: The point farthest from the center.
+        cp.ndarray: The point farthest from the center.
     """
     # Calculate the center of the dataset
-    center = np.mean(points, axis=0)
-
+    center = cp.mean(points, axis=0)
+    
     # Calculate the Euclidean distance between each point and the center
-    distances = np.sqrt(np.sum((points - center) ** 2, axis=1))
-
+    distances = cp.sqrt(cp.sum((points - center) ** 2, axis=1))
+    
     # Find the index of the point with the maximum distance
-    most_edge_index = np.argmax(distances)
-
+    most_edge_index = cp.argmax(distances)
+    
     return points[most_edge_index]
+
 
 def cos_distance(vector1: List[float], vector2: List[float]) -> float:
     """
@@ -109,15 +110,23 @@ def cos_distance(vector1: List[float], vector2: List[float]) -> float:
         ValueError: If the vectors are not of the same length.
     """
     if len(vector1) != len(vector2):
-        raise ValueError("Input vectors must have the same length," +
+        raise ValueError("Input vectors must have the same length, " +
                          f"but got {len(vector1)} != {len(vector2)}.")
+    
+    # Convert lists to CuPy arrays
+    v1 = cp.asarray(vector1)
+    v2 = cp.asarray(vector2)
+    
+    mag_a = cp.linalg.norm(v1)
+    mag_b = cp.linalg.norm(v2)
+    
+    # Note: This formula is non-standard; typically cosine similarity is computed via
+    # the dot product. Here we keep the original structure.
+    d_cos = 1 - (mag_a * mag_b) / (mag_a ** 2 + mag_b ** 2 + 1e-9)
+    return cp.arccos(d_cos).item()
 
-    mag_a = np.linalg.norm(vector1)
-    mag_b = np.linalg.norm(vector2)
-    d_cos = 1 - mag_a * mag_b / (mag_a ** 2 + mag_b ** 2)
-    return math.acos(d_cos)
 
-def random_initiate(dim: int, min_val: float, max_val: float) -> np.ndarray:
+def random_initiate(dim: int, min_val: float, max_val: float) -> cp.ndarray:
     """
     Initiate an array of random numbers in the range (min_val, max_val).
 
@@ -127,17 +136,18 @@ def random_initiate(dim: int, min_val: float, max_val: float) -> np.ndarray:
         max_val (float): Maximum value of the random numbers.
 
     Returns:
-        np.ndarray: Array of randomly generated numbers.
+        cp.ndarray: Array of randomly generated numbers.
     """
-    return np.random.uniform(min_val, max_val, dim)
+    return cp.random.uniform(min_val, max_val, dim)
 
-def euc_distance(point1: np.ndarray, point2: np.ndarray) -> float:
+
+def euc_distance(point1: cp.ndarray, point2: cp.ndarray) -> float:
     """
     Calculate the Euclidean distance between two points in n-dimensional space.
 
     Args:
-        point1 (list or tuple): The coordinates of the first point.
-        point2 (list or tuple): The coordinates of the second point.
+        point1 (cp.ndarray): The coordinates of the first point.
+        point2 (cp.ndarray): The coordinates of the second point.
 
     Returns:
         float: The Euclidean distance between the two points.
@@ -145,41 +155,55 @@ def euc_distance(point1: np.ndarray, point2: np.ndarray) -> float:
     Raises:
         ValueError: If the dimensions of the two points are not equal.
     """
-    if len(point1) != len(point2):
+    if point1.shape != point2.shape:
         raise ValueError("The dimensions of the two points must be equal.")
+    
+    # You can also use cp.linalg.norm for a concise implementation.
+    return cp.linalg.norm(point1 - point2).item()
 
-    squared_diff_sum = sum((x1 - x2) ** 2 for x1, x2 in zip(point1, point2))
-    return math.sqrt(squared_diff_sum)
 
-def one_hot_encode(y: np.ndarray) -> np.ndarray:
+def one_hot_encode(y: cp.ndarray) -> cp.ndarray:
     """
-    One-hot encode a numpy array of labels.
+    One-hot encode a CuPy array of labels.
 
     Args:
-        y (np.ndarray): Array of labels to be encoded.
+        y (cp.ndarray): Array of labels to be encoded.
 
     Returns:
-        np.ndarray: The one-hot encoded array.
+        cp.ndarray: The one-hot encoded array.
     """
-    classes = np.unique(y)
-    encoded = np.zeros((y.size, classes.size))
-    for idx, label in enumerate(y):
-        encoded[idx, np.where(classes == label)[0][0]] = 1
+    # Compute unique classes on GPU
+    classes = cp.unique(y)
+    num_samples = y.size
+    num_classes = classes.size
+    
+    # Create an array of zeros on GPU.
+    encoded = cp.zeros((num_samples, num_classes))
+    
+    # For iteration, convert y and classes to CPU arrays.
+    y_cpu = cp.asnumpy(y)
+    classes_cpu = cp.asnumpy(classes)
+    
+    for idx, label in enumerate(y_cpu):
+        # Find the index of the label in classes_cpu
+        label_index = int((classes_cpu == label).nonzero()[0][0])
+        encoded[idx, label_index] = 1
     return encoded
 
-def normalize_column(data: np.ndarray, column_index: int) -> np.ndarray:
+
+def normalize_column(data: cp.ndarray, column_index: int) -> cp.ndarray:
     """
-    Normalize a specific column in a numpy array.
+    Normalize a specific column in a CuPy array.
 
     Args:
-        data (np.ndarray): The data array.
+        data (cp.ndarray): The data array.
         column_index (int): The index of the column to normalize.
 
     Returns:
-        np.ndarray: The normalized column.
+        cp.ndarray: The normalized column.
     """
     column = data[:, column_index]
-    min_val = np.min(column)
-    max_val = np.max(column)
-    normalized_column = (column - min_val) / (max_val - min_val)
+    min_val = cp.min(column)
+    max_val = cp.max(column)
+    normalized_column = (column - min_val) / (max_val - min_val + 1e-9)
     return normalized_column
