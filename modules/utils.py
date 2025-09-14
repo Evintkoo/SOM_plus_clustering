@@ -70,10 +70,19 @@ Dependencies:
 """
 
 import math
-from typing import List
-import cupy as cp
+from typing import List, Any
+import importlib
+import numpy as np
+try:
+    cp = importlib.import_module('cupy')  # type: ignore
+except Exception:  # pragma: no cover - allow CPU-only environments
+    cp = np  # type: ignore
+    if not hasattr(cp, 'asarray'):
+        cp.asarray = np.asarray  # type: ignore
+    if not hasattr(cp, 'arccos'):
+        cp.arccos = np.arccos  # type: ignore
 
-def find_most_edge_point(points: cp.ndarray) -> cp.ndarray:
+def find_most_edge_point(points: Any) -> Any:
     """
     Find the point farthest from the center of the dataset.
 
@@ -98,6 +107,7 @@ def find_most_edge_point(points: cp.ndarray) -> cp.ndarray:
 def cos_distance(vector1: List[float], vector2: List[float]) -> float:
     """
     Calculate the cosine distance between two vectors.
+    Optimized for better numerical stability and performance.
 
     Args:
         vector1 (List[float]): The first vector.
@@ -117,16 +127,24 @@ def cos_distance(vector1: List[float], vector2: List[float]) -> float:
     v1 = cp.asarray(vector1)
     v2 = cp.asarray(vector2)
     
-    mag_a = cp.linalg.norm(v1)
-    mag_b = cp.linalg.norm(v2)
+    # Compute norms with numerical stability
+    norm_v1 = cp.linalg.norm(v1) + 1e-12
+    norm_v2 = cp.linalg.norm(v2) + 1e-12
     
-    # Note: This formula is non-standard; typically cosine similarity is computed via
-    # the dot product. Here we keep the original structure.
-    d_cos = 1 - (mag_a * mag_b) / (mag_a ** 2 + mag_b ** 2 + 1e-9)
-    return cp.arccos(d_cos).item()
+    # Compute cosine similarity using dot product
+    dot_product = cp.dot(v1, v2)
+    cosine_similarity = dot_product / (norm_v1 * norm_v2)
+    
+    # Ensure cosine similarity is in valid range [-1, 1]
+    cosine_similarity = cp.clip(cosine_similarity, -1.0, 1.0)
+    
+    # Convert to cosine distance
+    cosine_distance = 1.0 - cosine_similarity
+    
+    return float(cosine_distance.item())
 
 
-def random_initiate(dim: int, min_val: float, max_val: float) -> cp.ndarray:
+def random_initiate(dim: int, min_val: float, max_val: float) -> Any:
     """
     Initiate an array of random numbers in the range (min_val, max_val).
 
@@ -141,7 +159,7 @@ def random_initiate(dim: int, min_val: float, max_val: float) -> cp.ndarray:
     return cp.random.uniform(min_val, max_val, dim)
 
 
-def euc_distance(point1: cp.ndarray, point2: cp.ndarray) -> float:
+def euc_distance(point1: Any, point2: Any) -> float:
     """
     Calculate the Euclidean distance between two points in n-dimensional space.
 
@@ -162,38 +180,39 @@ def euc_distance(point1: cp.ndarray, point2: cp.ndarray) -> float:
     return cp.linalg.norm(point1 - point2).item()
 
 
-def one_hot_encode(y: cp.ndarray) -> cp.ndarray:
+def one_hot_encode(y: Any) -> Any:
     """
-    One-hot encode a CuPy array of labels.
+    One-hot encode a CuPy array of labels (fully vectorized on GPU).
+    Optimized for better performance and memory efficiency.
 
     Args:
-        y (cp.ndarray): Array of labels to be encoded.
+        y (cp.ndarray): Array of integer-like labels to be encoded.
 
     Returns:
-        cp.ndarray: The one-hot encoded array.
+        cp.ndarray: The one-hot encoded array with shape (N, C).
     """
-    # Compute unique classes on GPU
-    classes = cp.unique(y)
-    num_samples = y.size
+    # Flatten input if necessary and ensure it's 1D
+    y_flat = y.flatten() if y.ndim > 1 else y
+    
+    # Compute unique classes and map labels to indices
+    classes, inverse = cp.unique(y_flat, return_inverse=True)  # inverse in [0, C)
+    num_samples = y_flat.size
     num_classes = classes.size
+
+    # Allocate output array with appropriate dtype
+    encoded = cp.zeros((num_samples, num_classes), dtype=cp.float32)
     
-    # Create an array of zeros on GPU.
-    encoded = cp.zeros((num_samples, num_classes))
+    # Use advanced indexing for efficient assignment
+    rows = cp.arange(num_samples)
+    encoded[rows, inverse] = 1.0
     
-    # For iteration, convert y and classes to CPU arrays.
-    y_cpu = cp.asnumpy(y)
-    classes_cpu = cp.asnumpy(classes)
-    
-    for idx, label in enumerate(y_cpu):
-        # Find the index of the label in classes_cpu
-        label_index = int((classes_cpu == label).nonzero()[0][0])
-        encoded[idx, label_index] = 1
     return encoded
 
 
-def normalize_column(data: cp.ndarray, column_index: int) -> cp.ndarray:
+def normalize_column(data: Any, column_index: int) -> Any:
     """
     Normalize a specific column in a CuPy array.
+    Optimized for better numerical stability.
 
     Args:
         data (cp.ndarray): The data array.
@@ -201,9 +220,22 @@ def normalize_column(data: cp.ndarray, column_index: int) -> cp.ndarray:
 
     Returns:
         cp.ndarray: The normalized column.
+        
+    Raises:
+        IndexError: If column_index is out of bounds.
     """
+    if column_index >= data.shape[1] or column_index < 0:
+        raise IndexError(f"Column index {column_index} is out of bounds for array with {data.shape[1]} columns")
+    
     column = data[:, column_index]
     min_val = cp.min(column)
     max_val = cp.max(column)
-    normalized_column = (column - min_val) / (max_val - min_val + 1e-9)
+    
+    # Add numerical stability check
+    range_val = max_val - min_val
+    if range_val < 1e-12:
+        # If range is very small, return zeros or original values
+        return cp.zeros_like(column)
+    
+    normalized_column = (column - min_val) / range_val
     return normalized_column

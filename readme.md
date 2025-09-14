@@ -44,9 +44,9 @@ The Self-Organizing Map (SOM) is a type of artificial neural network trained usi
 
 Clone the repository and install the required dependencies:
 
-```bash
+```pwsh
 git clone https://github.com/Evintkoo/SOM_plus_clustering.git
-cd som-implementation
+cd SOM_plus_clustering
 pip install -r requirements.txt
 ```
 
@@ -95,9 +95,9 @@ print(labels)
 
 ### Multiprocessing for Faster Training
 
-```python
-som.fit(x=data, epoch=100, shuffle=True, verbose=True, n_jobs=-1)
-```
+### GPU Acceleration
+
+This implementation uses CuPy to perform computation on the GPU. If `cupy` is not installed, imports will fail. Install a CUDA-compatible CuPy wheel (see Installation) to use the GPU path.
 
 ### Evaluating the SOM
 
@@ -131,9 +131,13 @@ plt.show()
 
 ## Performance Optimization
 
-- **Use Multiprocessing:** Utilize the `n_jobs` parameter for parallel processing on multi-core systems to speed up training.
-- **Data Preprocessing:** Normalize input data to ensure faster convergence and better clustering performance.
-- **Memory Management:** For large datasets, consider using batch processing or splitting data into chunks.
+- Keep data and model on the GPU to avoid host-device transfers. This code uses CuPy end-to-end during training and prediction.
+- Data Preprocessing: Normalize input data to ensure faster convergence and better clustering performance.
+- Use the benchmarking script to get a quick idea of throughput:
+
+```pwsh
+python bench_som.py
+```
 
 ## Evaluation Metrics
 

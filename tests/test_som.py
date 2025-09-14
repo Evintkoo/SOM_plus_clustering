@@ -1,6 +1,10 @@
 import unittest
 import numpy as np
-import cupy as cp
+import importlib
+try:
+    cp = importlib.import_module('cupy')  # type: ignore
+except Exception:
+    cp = None  # type: ignore
 import os
 import tempfile
 
@@ -69,13 +73,14 @@ class KMeans:
         self.centroids = np.random.rand(self.n_clusters, x.shape[1])
 
 
+@unittest.skipIf(cp is None, "CuPy not installed; skipping GPU SOM tests")
 class TestSelfOrganizingMap(unittest.TestCase):
     def setUp(self):
         """Set up test data and parameters before each test."""
-        cp.random.seed(42)
+        cp.random.seed(42)  # type: ignore
         # Create data as a CuPy array
         data_cpu = np.random.rand(100, 3)  # 100 samples, 3-dimensional data on CPU
-        self.data = cp.asarray(data_cpu)
+        self.data = cp.asarray(data_cpu)  # type: ignore
         self.m = 10  # Height of SOM grid
         self.n = 10  # Width of SOM grid
 
@@ -125,14 +130,14 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   neighbour_rad=5, 
                   distance_function="euclidean")
         
-        neurons = som.initiate_neuron(cp.asnumpy(self.data))
+        neurons = som.initiate_neuron(cp.asnumpy(self.data))  # type: ignore
         # Check neuron shape
         self.assertEqual(neurons.shape, (self.m, self.n, 3))
         
         # Check value ranges (for random initialization)
-        neurons_cpu = cp.asnumpy(neurons)
-        self.assertTrue(np.all(neurons_cpu >= self.data.min().get()))
-        self.assertTrue(np.all(neurons_cpu <= self.data.max().get()))
+        neurons_cpu = cp.asnumpy(neurons)  # type: ignore
+        self.assertTrue(np.all(neurons_cpu >= self.data.min().get()))  # type: ignore
+        self.assertTrue(np.all(neurons_cpu <= self.data.max().get()))  # type: ignore
 
     def test_fit_predict(self):
         """Test SOM fit and predict methods."""
@@ -143,10 +148,10 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   distance_function="euclidean")
         
         # Fit and predict. Note: fit_predict expects CPU data (NumPy array)
-        labels = som.fit_predict(x=cp.asnumpy(self.data), epoch=10)
+        labels = som.fit_predict(x=cp.asnumpy(self.data), epoch=10)  # type: ignore
         
         # Check labels: they should be a 1D NumPy array with length equal to the number of samples.
-        self.assertEqual(len(labels), cp.asnumpy(self.data).shape[0])
+        self.assertEqual(len(labels), cp.asnumpy(self.data).shape[0])  # type: ignore
         self.assertTrue(np.all(labels >= 0))
         self.assertTrue(np.all(labels < self.m * self.n))
 
@@ -159,7 +164,7 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   distance_function="euclidean")
         
         with self.assertRaises(RuntimeError):
-            som.predict(cp.asnumpy(self.data))
+            som.predict(cp.asnumpy(self.data))  # type: ignore
 
     def test_evaluation_methods(self):
         """Test different evaluation methods."""
@@ -169,14 +174,14 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   neighbour_rad=5, 
                   distance_function="euclidean")
         
-        som.fit(x=cp.asnumpy(self.data), epoch=10)
+        som.fit(x=cp.asnumpy(self.data), epoch=10)  # type: ignore
         
         # Test individual method
-        silhouette = som.evaluate(x=cp.asnumpy(self.data), method=["silhouette"])
+        silhouette = som.evaluate(x=cp.asnumpy(self.data), method=["silhouette"])  # type: ignore
         self.assertEqual(len(silhouette), 1)
         
         # Test all methods
-        all_scores = som.evaluate(x=cp.asnumpy(self.data), method=["all"])
+        all_scores = som.evaluate(x=cp.asnumpy(self.data), method=["all"])  # type: ignore
         expected_methods = ["silhouette", "davies_bouldin", 
                              "calinski_harabasz", "dunn"]
         self.assertTrue(all(method in all_scores for method in expected_methods))
@@ -190,7 +195,7 @@ class TestSelfOrganizingMap(unittest.TestCase):
                            neighbour_rad=5, 
                            distance_function="euclidean")
         
-        original_som.fit(x=cp.asnumpy(self.data), epoch=10)
+        original_som.fit(x=cp.asnumpy(self.data), epoch=10)  # type: ignore
         
         # Use a temporary file
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -210,8 +215,8 @@ class TestSelfOrganizingMap(unittest.TestCase):
             
             # Compare neurons (convert to CPU arrays for comparison)
             np.testing.assert_array_almost_equal(
-                cp.asnumpy(original_som.neurons), 
-                cp.asnumpy(loaded_som.neurons)
+                cp.asnumpy(original_som.neurons),  # type: ignore
+                cp.asnumpy(loaded_som.neurons)  # type: ignore
             )
         finally:
             # Clean up the temporary file
@@ -225,10 +230,10 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   neighbour_rad=5, 
                   distance_function="cosine")
         
-        labels = som.fit_predict(x=cp.asnumpy(self.data), epoch=10)
+        labels = som.fit_predict(x=cp.asnumpy(self.data), epoch=10)  # type: ignore
         
         # Check labels
-        self.assertEqual(len(labels), cp.asnumpy(self.data).shape[0])
+        self.assertEqual(len(labels), cp.asnumpy(self.data).shape[0])  # type: ignore
         self.assertTrue(np.all(labels >= 0))
         self.assertTrue(np.all(labels < self.m * self.n))
 
