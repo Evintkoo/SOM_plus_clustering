@@ -1,15 +1,86 @@
 import unittest
 import numpy as np
+import importlib
+try:
+    cp = importlib.import_module('cupy')  # type: ignore
+except Exception:
+    cp = None  # type: ignore
 import os
 import tempfile
 
-from modules.som import SOM  # Adjust import based on your project structure
+# Adjust import based on your project structure
+from modules.som import SOM  # This is your GPU-enabled SOM
 
+# Dummy external functions and constants for testing purposes.
+# In your project these should be replaced by the actual implementations.
+def validate_configuration(initiate_method, learning_rate, distance_function):
+    # For example, if learning_rate is out of (0,1), throw an error.
+    if not (0 < learning_rate <= 1):
+        raise ValueError("Learning rate must be in (0,1]")
+    valid_inits = ["random", "kde", "kmeans", "som++", "zero", "he", "naive_sharding", "lecun", "lsuv"]
+    if initiate_method not in valid_inits:
+        raise ValueError("Invalid initiation method")
+    if distance_function not in ["euclidean", "cosine"]:
+        raise ValueError("Invalid distance function")
+
+# Dummy evaluation metric functions.
+def silhouette_score(x, labels):
+    return 0.5
+
+def davies_bouldin_index(x, labels):
+    return 1.0
+
+def calinski_harabasz_score(x, labels):
+    return 100.0
+
+def dunn_index(x, labels):
+    return 0.2
+
+EVAL_METHOD_LIST = ["silhouette", "davies_bouldin", "calinski_harabasz", "dunn"]
+
+# If your module relies on external initialization methods (like initiate_kde),
+# provide dummy implementations here for testing.
+def initiate_kde(x, n_neurons):
+    return np.random.rand(n_neurons, x.shape[1])
+
+def initiate_plus_plus(m, n, x):
+    return np.random.rand(m * n, x.shape[1])
+
+def initiate_zero(P, Q):
+    return np.zeros((P, Q))
+
+def initiate_he(input_dim, output_dim):
+    return np.random.randn(output_dim, input_dim)
+
+def initiate_naive_sharding(X, k):
+    idx = np.linspace(0, len(X)-1, k, dtype=int)
+    return X[idx]
+
+def initiate_lecun(input_shape, output_shape):
+    return np.random.randn(output_shape, input_shape)
+
+def initiate_lsuv(input_dim, output_dim, X_batch):
+    return np.random.randn(output_dim, input_dim)
+
+# Dummy KMeans for initialization methods.
+class KMeans:
+    def __init__(self, n_clusters, method):
+        self.n_clusters = n_clusters
+        self.method = method
+        self.centroids = None
+
+    def fit(self, x):
+        self.centroids = np.random.rand(self.n_clusters, x.shape[1])
+
+
+@unittest.skipIf(cp is None, "CuPy not installed; skipping GPU SOM tests")
 class TestSelfOrganizingMap(unittest.TestCase):
     def setUp(self):
         """Set up test data and parameters before each test."""
-        np.random.seed(42)
-        self.data = np.random.rand(100, 3)  # 100 samples, 3-dimensional data
+        cp.random.seed(42)  # type: ignore
+        # Create data as a CuPy array
+        data_cpu = np.random.rand(100, 3)  # 100 samples, 3-dimensional data on CPU
+        self.data = cp.asarray(data_cpu)  # type: ignore
         self.m = 10  # Height of SOM grid
         self.n = 10  # Width of SOM grid
 
@@ -27,7 +98,7 @@ class TestSelfOrganizingMap(unittest.TestCase):
 
     def test_invalid_initialization(self):
         """Test invalid initialization parameters."""
-        # Test invalid learning rate
+        # Test invalid learning rate (should be in (0,1])
         with self.assertRaises(ValueError):
             SOM(m=self.m, n=self.n, dim=3, 
                 initiate_method="random", 
@@ -59,14 +130,14 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   neighbour_rad=5, 
                   distance_function="euclidean")
         
-        neurons = som.initiate_neuron(self.data)
-        
+        neurons = som.initiate_neuron(cp.asnumpy(self.data))  # type: ignore
         # Check neuron shape
         self.assertEqual(neurons.shape, (self.m, self.n, 3))
         
         # Check value ranges (for random initialization)
-        self.assertTrue(np.all(neurons >= self.data.min()))
-        self.assertTrue(np.all(neurons <= self.data.max()))
+        neurons_cpu = cp.asnumpy(neurons)  # type: ignore
+        self.assertTrue(np.all(neurons_cpu >= self.data.min().get()))  # type: ignore
+        self.assertTrue(np.all(neurons_cpu <= self.data.max().get()))  # type: ignore
 
     def test_fit_predict(self):
         """Test SOM fit and predict methods."""
@@ -76,11 +147,11 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   neighbour_rad=5, 
                   distance_function="euclidean")
         
-        # Fit and predict
-        labels = som.fit_predict(x=self.data, epoch=10)
+        # Fit and predict. Note: fit_predict expects CPU data (NumPy array)
+        labels = som.fit_predict(x=cp.asnumpy(self.data), epoch=10)  # type: ignore
         
-        # Check labels
-        self.assertEqual(len(labels), len(self.data))
+        # Check labels: they should be a 1D NumPy array with length equal to the number of samples.
+        self.assertEqual(len(labels), cp.asnumpy(self.data).shape[0])  # type: ignore
         self.assertTrue(np.all(labels >= 0))
         self.assertTrue(np.all(labels < self.m * self.n))
 
@@ -93,7 +164,7 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   distance_function="euclidean")
         
         with self.assertRaises(RuntimeError):
-            som.predict(self.data)
+            som.predict(cp.asnumpy(self.data))  # type: ignore
 
     def test_evaluation_methods(self):
         """Test different evaluation methods."""
@@ -103,14 +174,14 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   neighbour_rad=5, 
                   distance_function="euclidean")
         
-        som.fit(x=self.data, epoch=10)
+        som.fit(x=cp.asnumpy(self.data), epoch=10)  # type: ignore
         
         # Test individual method
-        silhouette = som.evaluate(x=self.data, method=["silhouette"])
+        silhouette = som.evaluate(x=cp.asnumpy(self.data), method=["silhouette"])  # type: ignore
         self.assertEqual(len(silhouette), 1)
         
         # Test all methods
-        all_scores = som.evaluate(x=self.data, method=["all"])
+        all_scores = som.evaluate(x=cp.asnumpy(self.data), method=["all"])  # type: ignore
         expected_methods = ["silhouette", "davies_bouldin", 
                              "calinski_harabasz", "dunn"]
         self.assertTrue(all(method in all_scores for method in expected_methods))
@@ -124,7 +195,7 @@ class TestSelfOrganizingMap(unittest.TestCase):
                            neighbour_rad=5, 
                            distance_function="euclidean")
         
-        original_som.fit(x=self.data, epoch=10)
+        original_som.fit(x=cp.asnumpy(self.data), epoch=10)  # type: ignore
         
         # Use a temporary file
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
@@ -142,10 +213,10 @@ class TestSelfOrganizingMap(unittest.TestCase):
             self.assertEqual(original_som.n, loaded_som.n)
             self.assertEqual(original_som.dim, loaded_som.dim)
             
-            # Compare neurons
+            # Compare neurons (convert to CPU arrays for comparison)
             np.testing.assert_array_almost_equal(
-                original_som.neurons, 
-                loaded_som.neurons
+                cp.asnumpy(original_som.neurons),  # type: ignore
+                cp.asnumpy(loaded_som.neurons)  # type: ignore
             )
         finally:
             # Clean up the temporary file
@@ -159,10 +230,10 @@ class TestSelfOrganizingMap(unittest.TestCase):
                   neighbour_rad=5, 
                   distance_function="cosine")
         
-        labels = som.fit_predict(x=self.data, epoch=10)
+        labels = som.fit_predict(x=cp.asnumpy(self.data), epoch=10)  # type: ignore
         
         # Check labels
-        self.assertEqual(len(labels), len(self.data))
+        self.assertEqual(len(labels), cp.asnumpy(self.data).shape[0])  # type: ignore
         self.assertTrue(np.all(labels >= 0))
         self.assertTrue(np.all(labels < self.m * self.n))
 

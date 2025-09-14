@@ -86,6 +86,7 @@ from scipy.spatial.distance import pdist, squareform
 def silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
     """
     Calculate the Silhouette Coefficient for a clustering result.
+    Optimized for better performance and numerical stability.
 
     Args:
         x (np.ndarray): The input data points, shape (n_samples, n_features).
@@ -95,34 +96,51 @@ def silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
         float: The Silhouette Coefficient. 
                 Returns 0.0 if there's only one cluster or if all clusters have only one sample.
     """
-    distances = squareform(pdist(x))
     n_samples = x.shape[0]
     unique_labels = np.unique(labels)
 
     if len(unique_labels) == 1:
         return 0.0  # Return 0 if there's only one cluster
 
+    # Pre-compute pairwise distances efficiently
+    distances = squareform(pdist(x))
+    
+    # Pre-allocate arrays
     a = np.zeros(n_samples)
     b = np.full(n_samples, np.inf)
 
+    # Process each cluster
     for label in unique_labels:
         mask = labels == label
-        cluster_size = np.sum(mask)
+        cluster_indices = np.where(mask)[0]
+        cluster_size = len(cluster_indices)
 
         if cluster_size > 1:
-            a[mask] = np.sum(distances[mask][:, mask], axis=1) / (cluster_size - 1)
+            # Vectorized computation of intra-cluster distances
+            cluster_distances = distances[np.ix_(cluster_indices, cluster_indices)]
+            # Sum over rows and divide by (cluster_size - 1)
+            a[cluster_indices] = (cluster_distances.sum(axis=1) - np.diag(cluster_distances)) / (cluster_size - 1)
         else:
-            a[mask] = 0  # Set a to 0 for clusters with only one sample
+            a[cluster_indices] = 0  # Set a to 0 for clusters with only one sample
 
-        other_distances = [np.mean(distances[mask][:, labels == other_label])
-                           for other_label in unique_labels if other_label != label]
-        if other_distances:
-            b[mask] = np.min(other_distances)
+        # Compute inter-cluster distances efficiently
+        for other_label in unique_labels:
+            if other_label != label:
+                other_mask = labels == other_label
+                other_indices = np.where(other_mask)[0]
+                if len(other_indices) > 0:
+                    # Vectorized computation of inter-cluster distances
+                    inter_distances = distances[np.ix_(cluster_indices, other_indices)]
+                    mean_inter_distances = inter_distances.mean(axis=1)
+                    b[cluster_indices] = np.minimum(b[cluster_indices], mean_inter_distances)
 
-    s = np.zeros(n_samples)
+    # Compute silhouette scores with numerical stability
     valid_samples = (a != 0) | (b != np.inf)
-    s[valid_samples] = ((b[valid_samples] - a[valid_samples]) /
-                        np.maximum(a[valid_samples], b[valid_samples]))
+    s = np.zeros(n_samples)
+    
+    # Vectorized silhouette computation
+    denominator = np.maximum(a[valid_samples], b[valid_samples])
+    s[valid_samples] = (b[valid_samples] - a[valid_samples]) / denominator
 
     if np.sum(valid_samples) == 0:
         return 0.0  # Return 0 if all clusters have only one sample
@@ -132,6 +150,7 @@ def silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
 def davies_bouldin_index(x: np.ndarray, labels: np.ndarray) -> float:
     """
     Calculate the Davies-Bouldin Index for a clustering result.
+    Optimized for better performance and numerical stability.
 
     Args:
         x (np.ndarray): The input data points, shape (n_samples, n_features).
@@ -143,22 +162,35 @@ def davies_bouldin_index(x: np.ndarray, labels: np.ndarray) -> float:
     unique_labels = np.unique(labels)
     n_clusters = len(unique_labels)
 
-    centroids = np.array([np.mean(x[labels == i], axis=0) for i in unique_labels])
+    if n_clusters <= 1:
+        return 0.0  # Return 0 for single cluster or empty clusters
 
+    # Pre-compute centroids efficiently
+    centroids = np.array([np.mean(x[labels == label], axis=0) for label in unique_labels])
+
+    # Pre-compute intra-cluster dispersions
     dispersions = np.zeros(n_clusters)
     for i, label in enumerate(unique_labels):
         cluster_points = x[labels == label]
-        dispersions[i] = np.mean(np.linalg.norm(cluster_points - centroids[i], axis=1))
+        if len(cluster_points) > 0:
+            # Vectorized dispersion computation
+            dispersions[i] = np.mean(np.linalg.norm(cluster_points - centroids[i], axis=1))
 
+    # Compute pairwise centroid distances efficiently
     centroid_distances = pdist(centroids)
 
+    # Compute Davies-Bouldin index
     db_index = 0.0
     for i in range(n_clusters):
         max_ratio = 0.0
         for j in range(i + 1, n_clusters):
-            ratio = ((dispersions[i] + dispersions[j]) /
-                     centroid_distances[n_clusters * i + j - ((i + 2) * (i + 1)) // 2])
-            max_ratio = max(max_ratio, ratio)
+            # Get distance between centroids i and j
+            dist_idx = n_clusters * i + j - ((i + 2) * (i + 1)) // 2
+            centroid_dist = centroid_distances[dist_idx]
+            
+            if centroid_dist > 1e-12:  # Avoid division by zero
+                ratio = (dispersions[i] + dispersions[j]) / centroid_dist
+                max_ratio = max(max_ratio, ratio)
         db_index += max_ratio
 
     return db_index / n_clusters
