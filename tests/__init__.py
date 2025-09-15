@@ -1,0 +1,1 @@
+"""Test suite for SOM plus clustering project."""

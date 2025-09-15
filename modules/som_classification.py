@@ -100,7 +100,7 @@ class SOM:
             model: KMeans = KMeans(n_clusters=(self.m * self.n), method=self.init_method)
             model.fit(x=data)
             return np.array(np.array(model.centroids).reshape(self.shape))
-        if self.init_method == "SOM++":
+        if self.init_method == "som++":
             plus_plus_neurons: np.array = initiate_plus_plus(m = self.m, n = self.n, x = data)
             return plus_plus_neurons.reshape(self.shape)
         raise ValueError(f"Invalid initiation method: {self.init_method}")
@@ -222,6 +222,19 @@ class SOM:
 
         # Combine results
         self.neurons = np.mean(results, axis=0)
+        
+        # Update learning rate and radius to reflect the final training state
+        n_sample: int = x.shape[0]
+        total_iteration: int = int(min(epoch * n_sample, self.max_iter))
+        final_iter = min(total_iteration, self.max_iter)
+        power: float = final_iter / total_iteration if total_iteration > 0 else 1.0
+        
+        self.cur_learning_rate = (self.initial_learning_rate *
+                                  (1 - power) *
+                                  math.exp(-final_iter / self.initial_learning_rate))
+        self.cur_neighbour_rad = (self.initial_neighbour_rad *
+                                  (1 - power) *
+                                  math.exp(-final_iter / self.initial_neighbour_rad))
         
         # Calculate distances between neurons and data points in a vectorized way using numpy
         distances = np.linalg.norm(self.cluster_center_[:, np.newaxis, :] - x[np.newaxis, :, :], axis=2)

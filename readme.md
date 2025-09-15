@@ -34,7 +34,7 @@ The Self-Organizing Map (SOM) is a type of artificial neural network trained usi
 
 ## Features
 
-- **Initialization Methods:** Random, KDE, KMeans, KDE-KMeans, KMeans++, SOM++
+- **Initialization Methods:** Random, KDE, KMeans, KDE-KMeans, KMeans++, som++
 - **Distance Functions:** Euclidean, Cosine
 - **Evaluation Metrics:** Silhouette score, Davies-Bouldin index, Calinski-Harabasz score, Dunn index
 - **Multiprocessing Support:** Leveraging joblib for parallel processing to accelerate training
