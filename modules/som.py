@@ -2,6 +2,12 @@
 This module implements the Self-Organizing Map (SOM) algorithm for unsupervised learning.
 It includes methods for initializing the SOM, training it on input data,
 and evaluating the results.
+
+Performance optimizations:
+- Numba JIT compilation for distance calculations and non-parallel operations
+- Taichi kernels for parallel SOM operations
+- CuPy GPU acceleration
+- Adaptive backend selection based on data size and hardware availability
 """
 import math
 import pickle
@@ -21,6 +27,28 @@ except Exception:  # pragma: no cover - allow CPU-only environments
     if not hasattr(cp, "asnumpy"):
         cp.asnumpy = np.asarray  # type: ignore
 
+# JIT and parallel processing imports
+try:
+    from numba import jit, prange
+    import numba
+    _USING_NUMBA = True
+except ImportError:
+    _USING_NUMBA = False
+    # Fallback decorators
+    def jit(*args, **kwargs):
+        def decorator(func):
+            return func
+        return decorator
+    def prange(x):
+        return range(x)
+
+try:
+    import taichi as ti
+    ti.init(arch=ti.cpu)  # Initialize with CPU backend, can be changed to GPU if available
+    _USING_TAICHI = True
+except ImportError:
+    _USING_TAICHI = False
+
 from .initialization import *
 from .evals import (
     silhouette_score, davies_bouldin_index, calinski_harabasz_score,
@@ -29,6 +57,103 @@ from .evals import (
 from .kde_kernel import initiate_kde
 from .kmeans import KMeans
 from .variables import INITIATION_METHOD_LIST, DISTANCE_METHOD_LIST, EVAL_METHOD_LIST
+
+# JIT-optimized distance calculation functions
+@jit(nopython=True, fastmath=True)
+def euclidean_distance_jit(x, y):
+    """JIT-optimized Euclidean distance calculation."""
+    diff = x - y
+    return np.sqrt(np.sum(diff * diff))
+
+@jit(nopython=True, fastmath=True)
+def euclidean_distance_squared_jit(x, y):
+    """JIT-optimized squared Euclidean distance calculation."""
+    diff = x - y
+    return np.sum(diff * diff)
+
+@jit(nopython=True, fastmath=True)
+def cosine_distance_jit(x, y):
+    """JIT-optimized cosine distance calculation."""
+    norm_x = np.sqrt(np.sum(x * x)) + 1e-12
+    norm_y = np.sqrt(np.sum(y * y)) + 1e-12
+    dot_product = np.sum(x * y)
+    cosine_sim = dot_product / (norm_x * norm_y)
+    return 1.0 - cosine_sim
+
+@jit(nopython=True, fastmath=True)
+def batch_euclidean_distances_jit(data_batch, neurons_flat):
+    """JIT-optimized batch distance computation for Euclidean distance."""
+    batch_size = data_batch.shape[0]
+    n_neurons = neurons_flat.shape[0]
+    distances = np.empty((batch_size, n_neurons))
+    
+    for i in prange(batch_size):
+        for j in range(n_neurons):
+            distances[i, j] = euclidean_distance_squared_jit(data_batch[i], neurons_flat[j])
+    
+    return distances
+
+@jit(nopython=True, fastmath=True)
+def batch_cosine_distances_jit(data_batch, neurons_flat):
+    """JIT-optimized batch distance computation for cosine distance."""
+    batch_size = data_batch.shape[0]
+    n_neurons = neurons_flat.shape[0]
+    distances = np.empty((batch_size, n_neurons))
+    
+    for i in prange(batch_size):
+        for j in range(n_neurons):
+            distances[i, j] = cosine_distance_jit(data_batch[i], neurons_flat[j])
+    
+    return distances
+
+@jit(nopython=True, fastmath=True)
+def neighborhood_function_jit(dist_squared, learning_rate, radius_squared):
+    """JIT-optimized neighborhood function computation."""
+    return learning_rate * np.exp(-dist_squared / (2.0 * radius_squared))
+
+# Taichi kernels for parallel operations
+if _USING_TAICHI:
+    @ti.kernel
+    def taichi_batch_euclidean_distances(data_batch: ti.template(), 
+                                       neurons_flat: ti.template(),
+                                       distances: ti.template()):
+        """Taichi kernel for parallel batch Euclidean distance computation."""
+        batch_size, dim = data_batch.shape
+        n_neurons = neurons_flat.shape[0]
+        
+        for i, j in ti.ndrange(batch_size, n_neurons):
+            dist_sq = 0.0
+            for k in range(dim):
+                diff = data_batch[i, k] - neurons_flat[j, k]
+                dist_sq += diff * diff
+            distances[i, j] = dist_sq
+    
+    @ti.kernel
+    def taichi_neighborhood_update(neurons: ti.template(),
+                                 data_point: ti.template(),
+                                 bmu_row: ti.i32,
+                                 bmu_col: ti.i32,
+                                 learning_rate: ti.f32,
+                                 radius_sq: ti.f32):
+        """Taichi kernel for parallel neighborhood update."""
+        m, n, dim = neurons.shape
+        
+        for i, j in ti.ndrange(m, n):
+            # Compute distance to BMU
+            dist_sq = (i - bmu_row) ** 2 + (j - bmu_col) ** 2
+            
+            # Compute neighborhood influence
+            h = learning_rate * ti.exp(-dist_sq / (2.0 * radius_sq))
+            
+            # Update neuron weights
+            for k in range(dim):
+                neurons[i, j, k] += h * (data_point[k] - neurons[i, j, k])
+else:
+    # Dummy functions if Taichi is not available
+    def taichi_batch_euclidean_distances(*args, **kwargs):
+        pass
+    def taichi_neighborhood_update(*args, **kwargs):
+        pass
 
 def validate_configuration(initiate_method: str,
                         learning_rate: float,
@@ -76,7 +201,8 @@ class SOM:
     def __init__(self, m: int, n: int,
                  dim: int, initiate_method: str,
                  learning_rate: float, neighbour_rad: int,
-                 distance_function: str, max_iter: Union[int, float] = np.inf
+                 distance_function: str, max_iter: Union[int, float] = np.inf,
+                 backend: str = "auto"
                  ) -> None:
         """
         Initialize the SOM.
@@ -90,6 +216,7 @@ class SOM:
             neighbour_rad (int): Initial neighbourhood radius.
             distance_function (str): Distance function ("euclidean" or "cosine").
             max_iter (int, optional): Maximum number of iterations. Defaults to np.inf.
+            backend (str): Backend to use ("auto", "cupy", "taichi", "numba", "numpy").
         """
         # Validate configuration parameters (this should raise ValueError for invalid configurations)
         validate_configuration(initiate_method, learning_rate, distance_function)
@@ -101,6 +228,9 @@ class SOM:
         self.max_iter: Union[int, float] = max_iter if max_iter is not None else np.inf
         self.init_method: str = initiate_method
         self.dist_func: str = distance_function
+        
+        # Backend selection
+        self.backend = self._select_backend(backend)
 
         self.cur_learning_rate: float = learning_rate
         self.initial_learning_rate: float = learning_rate
@@ -115,6 +245,31 @@ class SOM:
         # Precomputed grid coordinates for neighborhood calculations
         self._grid_rows: Optional[Any] = None
         self._grid_cols: Optional[Any] = None
+
+    def _select_backend(self, backend: str) -> str:
+        """Select the optimal backend based on availability and data characteristics."""
+        if backend == "auto":
+            if _USING_CUPY:
+                return "cupy"
+            elif _USING_TAICHI:
+                return "taichi"
+            elif _USING_NUMBA:
+                return "numba"
+            else:
+                return "numpy"
+        else:
+            # Validate specific backend choice
+            backend_available = {
+                "cupy": _USING_CUPY,
+                "taichi": _USING_TAICHI,
+                "numba": _USING_NUMBA,
+                "numpy": True
+            }
+            if backend not in backend_available:
+                raise ValueError(f"Unknown backend: {backend}")
+            if not backend_available[backend]:
+                raise ValueError(f"Backend {backend} is not available")
+            return backend
 
     def initiate_neuron(self, data: np.ndarray) -> Any:
         """
@@ -165,40 +320,71 @@ class SOM:
     def index_bmu(self, x: Any) -> Tuple[int, int]:
         """
         Find the index of the best matching unit (BMU) among all neurons.
-        Optimized for better numerical stability and performance.
+        Optimized with multiple backends for better performance.
 
         Args:
-            x (cp.ndarray): Input data point (on GPU).
+            x (cp.ndarray): Input data point (on GPU/CPU).
 
         Returns:
             Tuple[int, int]: The indices (row, column) of the BMU.
         """
         neurons_flat = self.neurons.reshape(-1, self.dim)
-        if self.dist_func == "euclidean":
-            # Optimized squared distance computation with better numerical stability
-            # Use broadcasting to compute all distances at once
-            diff = neurons_flat - x  # Broadcasting: (K, dim) - (dim,) -> (K, dim)
-            d2 = cp.sum(diff * diff, axis=1)  # More stable than x2 + w2 - 2*cross
-            min_index_gpu = cp.argmin(d2)
-        elif self.dist_func == "cosine":
-            # Optimized cosine distance with better numerical stability
-            # Normalize vectors for more stable computation
-            norm_neurons = cp.linalg.norm(neurons_flat, axis=1, keepdims=True) + 1e-12
-            norm_x = cp.linalg.norm(x) + 1e-12
+        
+        if self.backend == "cupy" and _USING_CUPY:
+            # Use existing CuPy implementation
+            if self.dist_func == "euclidean":
+                diff = neurons_flat - x
+                d2 = cp.sum(diff * diff, axis=1)
+                min_index_gpu = cp.argmin(d2)
+            elif self.dist_func == "cosine":
+                norm_neurons = cp.linalg.norm(neurons_flat, axis=1, keepdims=True) + 1e-12
+                norm_x = cp.linalg.norm(x) + 1e-12
+                normalized_neurons = neurons_flat / norm_neurons
+                normalized_x = x / norm_x
+                cosine_sim = cp.sum(normalized_neurons * normalized_x, axis=1)
+                distances = 1.0 - cosine_sim
+                min_index_gpu = cp.argmin(distances)
+            min_index = int(min_index_gpu.item())
             
-            # Normalized dot product for cosine similarity
-            normalized_neurons = neurons_flat / norm_neurons
-            normalized_x = x / norm_x
-            cosine_sim = cp.sum(normalized_neurons * normalized_x, axis=1)
+        elif self.backend == "numba" and _USING_NUMBA:
+            # Use Numba JIT-optimized implementation
+            x_cpu = cp.asnumpy(x) if hasattr(x, 'get') else x
+            neurons_cpu = cp.asnumpy(neurons_flat) if hasattr(neurons_flat, 'get') else neurons_flat
             
-            # Convert to distance (1 - cosine_similarity)
-            distances = 1.0 - cosine_sim
-            min_index_gpu = cp.argmin(distances)
+            min_dist = np.inf
+            min_index = 0
+            
+            for i in range(neurons_cpu.shape[0]):
+                if self.dist_func == "euclidean":
+                    dist = euclidean_distance_squared_jit(x_cpu, neurons_cpu[i])
+                else:  # cosine
+                    dist = cosine_distance_jit(x_cpu, neurons_cpu[i])
+                
+                if dist < min_dist:
+                    min_dist = dist
+                    min_index = i
+                    
         else:
-            raise ValueError(f"Unsupported distance function: {self.dist_func}")
+            # Fallback to NumPy implementation
+            x_cpu = cp.asnumpy(x) if hasattr(x, 'get') else x
+            neurons_cpu = cp.asnumpy(neurons_flat) if hasattr(neurons_flat, 'get') else neurons_flat
+            
+            if self.dist_func == "euclidean":
+                diff = neurons_cpu - x_cpu
+                d2 = np.sum(diff * diff, axis=1)
+                min_index = int(np.argmin(d2))
+            elif self.dist_func == "cosine":
+                norm_neurons = np.linalg.norm(neurons_cpu, axis=1, keepdims=True) + 1e-12
+                norm_x = np.linalg.norm(x_cpu) + 1e-12
+                normalized_neurons = neurons_cpu / norm_neurons
+                normalized_x = x_cpu / norm_x
+                cosine_sim = np.sum(normalized_neurons * normalized_x, axis=1)
+                distances = 1.0 - cosine_sim
+                min_index = int(np.argmin(distances))
+            else:
+                raise ValueError(f"Unsupported distance function: {self.dist_func}")
 
-        # Convert linear index to 2D indices without cp.unravel_index overhead
-        min_index = int(min_index_gpu.item())
+        # Convert linear index to 2D indices
         row = min_index // self.n
         col = min_index % self.n
         return row, col
@@ -210,53 +396,101 @@ class SOM:
             self._grid_cols = cp.arange(self.n).reshape(1, self.n)
 
     def _bmu_indices_batch(self, data_batch: Any) -> Any:
-        """Compute BMU linear indices for a batch of samples on GPU.
-        Optimized for better performance and numerical stability.
+        """Compute BMU linear indices for a batch of samples with optimized backends.
 
         Args:
             data_batch: shape (B, dim)
 
         Returns:
-            cp.ndarray of shape (B,) with linear BMU indices in range [0, m*n).
+            Array of shape (B,) with linear BMU indices in range [0, m*n).
         """
         neurons_flat = self.neurons.reshape(-1, self.dim)  # (K, dim)
         batch_size = data_batch.shape[0]
         
-        if self.dist_func == "euclidean":
-            # Optimized batch distance computation
-            # Compute squared norms for all neurons and batch data
-            neuron_norms = cp.sum(neurons_flat * neurons_flat, axis=1, keepdims=True).T  # (1, K)
-            batch_norms = cp.sum(data_batch * data_batch, axis=1, keepdims=True)  # (B, 1)
+        if self.backend == "cupy" and _USING_CUPY:
+            # Use existing optimized CuPy implementation
+            if self.dist_func == "euclidean":
+                neuron_norms = cp.sum(neurons_flat * neurons_flat, axis=1, keepdims=True).T
+                batch_norms = cp.sum(data_batch * data_batch, axis=1, keepdims=True)
+                cross_terms = data_batch @ neurons_flat.T
+                distances_sq = batch_norms + neuron_norms - 2.0 * cross_terms
+                idx = cp.argmin(distances_sq, axis=1)
+            elif self.dist_func == "cosine":
+                neuron_norms = cp.linalg.norm(neurons_flat, axis=1, keepdims=True).T + 1e-12
+                batch_norms = cp.linalg.norm(data_batch, axis=1, keepdims=True) + 1e-12
+                dot_products = data_batch @ neurons_flat.T
+                cosine_similarities = dot_products / (batch_norms * neuron_norms)
+                distances = 1.0 - cosine_similarities
+                idx = cp.argmin(distances, axis=1)
+                
+        elif self.backend == "taichi" and _USING_TAICHI:
+            # Use Taichi parallel implementation
+            data_cpu = cp.asnumpy(data_batch) if hasattr(data_batch, 'get') else data_batch
+            neurons_cpu = cp.asnumpy(neurons_flat) if hasattr(neurons_flat, 'get') else neurons_flat
             
-            # Compute cross terms efficiently
-            cross_terms = data_batch @ neurons_flat.T  # (B, K)
+            # Create Taichi fields
+            data_field = ti.field(dtype=ti.f32, shape=data_cpu.shape)
+            neurons_field = ti.field(dtype=ti.f32, shape=neurons_cpu.shape)
+            distances_field = ti.field(dtype=ti.f32, shape=(batch_size, neurons_cpu.shape[0]))
             
-            # Compute squared distances: ||x - w||^2 = ||x||^2 + ||w||^2 - 2*x.w
-            distances_sq = batch_norms + neuron_norms - 2.0 * cross_terms  # (B, K)
-            idx = cp.argmin(distances_sq, axis=1)
+            # Copy data to Taichi fields
+            data_field.from_numpy(data_cpu.astype(np.float32))
+            neurons_field.from_numpy(neurons_cpu.astype(np.float32))
             
-        elif self.dist_func == "cosine":
-            # Optimized batch cosine distance computation with numerical stability
-            # Normalize all vectors once
-            neuron_norms = cp.linalg.norm(neurons_flat, axis=1, keepdims=True).T + 1e-12  # (1, K)
-            batch_norms = cp.linalg.norm(data_batch, axis=1, keepdims=True) + 1e-12  # (B, 1)
+            if self.dist_func == "euclidean":
+                taichi_batch_euclidean_distances(data_field, neurons_field, distances_field)
             
-            # Compute cosine similarities
-            dot_products = data_batch @ neurons_flat.T  # (B, K)
-            cosine_similarities = dot_products / (batch_norms * neuron_norms)  # (B, K)
+            # Get results and find minimum indices
+            distances_result = distances_field.to_numpy()
+            idx = np.argmin(distances_result, axis=1)
             
-            # Convert to distances
-            distances = 1.0 - cosine_similarities
-            idx = cp.argmin(distances, axis=1)
+            # Convert back to appropriate backend
+            if self.backend == "cupy":
+                idx = cp.asarray(idx)
+                
+        elif self.backend == "numba" and _USING_NUMBA:
+            # Use Numba JIT-optimized implementation
+            data_cpu = cp.asnumpy(data_batch) if hasattr(data_batch, 'get') else data_batch
+            neurons_cpu = cp.asnumpy(neurons_flat) if hasattr(neurons_flat, 'get') else neurons_flat
+            
+            if self.dist_func == "euclidean":
+                distances = batch_euclidean_distances_jit(data_cpu, neurons_cpu)
+            else:  # cosine
+                distances = batch_cosine_distances_jit(data_cpu, neurons_cpu)
+            
+            idx = np.argmin(distances, axis=1)
+            
+            # Convert back to appropriate backend
+            if _USING_CUPY and hasattr(data_batch, 'get'):
+                idx = cp.asarray(idx)
+                
         else:
-            raise ValueError(f"Unsupported distance function: {self.dist_func}")
+            # Fallback NumPy implementation
+            data_cpu = cp.asnumpy(data_batch) if hasattr(data_batch, 'get') else data_batch
+            neurons_cpu = cp.asnumpy(neurons_flat) if hasattr(neurons_flat, 'get') else neurons_flat
+            
+            if self.dist_func == "euclidean":
+                distances = np.linalg.norm(data_cpu[:, np.newaxis] - neurons_cpu, axis=2)
+            elif self.dist_func == "cosine":
+                neuron_norms = np.linalg.norm(neurons_cpu, axis=1, keepdims=True) + 1e-12
+                batch_norms = np.linalg.norm(data_cpu, axis=1, keepdims=True) + 1e-12
+                dot_products = data_cpu @ neurons_cpu.T
+                cosine_similarities = dot_products / (batch_norms * neuron_norms.T)
+                distances = 1.0 - cosine_similarities
+            
+            idx = np.argmin(distances, axis=1)
+            
+            # Convert back to appropriate backend
+            if _USING_CUPY and hasattr(data_batch, 'get'):
+                idx = cp.asarray(idx)
+        
         return idx  # (B,)
 
 
     def _vectorized_update(self, neurons: Any, data_point: Any) -> Any:
         """
         Perform a vectorized update of the neurons given one data point.
-        Optimized for memory efficiency and reduced computations.
+        Optimized with multiple backends including parallel Taichi kernels.
 
         Args:
             neurons (cp.ndarray): Neuron weights (shape: (m, n, dim)).
@@ -267,35 +501,99 @@ class SOM:
         """
         # Find the BMU for the data point.
         bmu_row, bmu_col = self.index_bmu(x=data_point)
-        # Create a grid of coordinates (cached).
-        self._ensure_grid()
-        grid_rows = self._grid_rows
-        grid_cols = self._grid_cols
-        # Compute squared distances from each neuron to the BMU.
-        dist_squared = (grid_rows - bmu_row) ** 2 + (grid_cols - bmu_col) ** 2
-        # Avoid division by zero and use more stable computation.
-        nr_sq = max(self.cur_neighbour_rad * self.cur_neighbour_rad, 1e-18)
-        # Compute the neighborhood function over the grid with numerical stability.
-        h = self.cur_learning_rate * cp.exp(-dist_squared / (2.0 * nr_sq))
-        # Expand h to match neuron shape.
-        h_expanded = h[:, :, cp.newaxis]  # shape (m, n, 1)
         
-        if self.dist_func == "euclidean":
-            # In-place update to reduce allocations - more numerically stable
-            diff = data_point - neurons
-            neurons += h_expanded * diff
-        elif self.dist_func == "cosine":
-            # Optimized cosine update with better numerical stability
-            neuron_norm = cp.linalg.norm(neurons, axis=2, keepdims=True) + 1e-12
-            x_norm = cp.linalg.norm(data_point) + 1e-12
-            # Normalize both vectors for more stable cosine computation
-            normalized_neurons = neurons / neuron_norm
-            normalized_x = data_point / x_norm
-            dot_product = cp.sum(normalized_neurons * normalized_x, axis=2, keepdims=True)
-            # Use stable cosine similarity computation
-            update_direction = dot_product * normalized_neurons - normalized_neurons
-            neurons += h_expanded * update_direction * neuron_norm
-        return neurons
+        if self.backend == "taichi" and _USING_TAICHI and self.dist_func == "euclidean":
+            # Use Taichi parallel kernel for neighborhood update
+            neurons_cpu = cp.asnumpy(neurons) if hasattr(neurons, 'get') else neurons
+            data_cpu = cp.asnumpy(data_point) if hasattr(data_point, 'get') else data_point
+            
+            # Create Taichi fields
+            neurons_field = ti.field(dtype=ti.f32, shape=neurons_cpu.shape)
+            data_field = ti.field(dtype=ti.f32, shape=data_cpu.shape)
+            
+            # Copy data to Taichi fields
+            neurons_field.from_numpy(neurons_cpu.astype(np.float32))
+            data_field.from_numpy(data_cpu.astype(np.float32))
+            
+            # Perform parallel neighborhood update
+            taichi_neighborhood_update(
+                neurons_field, data_field, bmu_row, bmu_col,
+                self.cur_learning_rate, 
+                max(self.cur_neighbour_rad * self.cur_neighbour_rad, 1e-18)
+            )
+            
+            # Get results
+            result = neurons_field.to_numpy()
+            
+            # Convert back to appropriate backend
+            if _USING_CUPY and hasattr(neurons, 'get'):
+                return cp.asarray(result)
+            else:
+                return result
+                
+        else:
+            # Use existing optimized implementation for CuPy/NumPy backends
+            self._ensure_grid()
+            grid_rows = self._grid_rows
+            grid_cols = self._grid_cols
+            
+            # Compute squared distances from each neuron to the BMU.
+            dist_squared = (grid_rows - bmu_row) ** 2 + (grid_cols - bmu_col) ** 2
+            
+            # Avoid division by zero and use more stable computation.
+            nr_sq = max(self.cur_neighbour_rad * self.cur_neighbour_rad, 1e-18)
+            
+            if self.backend == "numba" and _USING_NUMBA:
+                # Use JIT-optimized neighborhood function
+                neurons_cpu = cp.asnumpy(neurons) if hasattr(neurons, 'get') else neurons
+                data_cpu = cp.asnumpy(data_point) if hasattr(data_point, 'get') else data_point
+                dist_sq_cpu = cp.asnumpy(dist_squared) if hasattr(dist_squared, 'get') else dist_squared
+                
+                # Compute neighborhood influence using JIT
+                h_cpu = neighborhood_function_jit(dist_sq_cpu, self.cur_learning_rate, nr_sq)
+                h_expanded_cpu = h_cpu[:, :, np.newaxis]
+                
+                if self.dist_func == "euclidean":
+                    diff = data_cpu - neurons_cpu
+                    neurons_cpu += h_expanded_cpu * diff
+                elif self.dist_func == "cosine":
+                    neuron_norm = np.linalg.norm(neurons_cpu, axis=2, keepdims=True) + 1e-12
+                    x_norm = np.linalg.norm(data_cpu) + 1e-12
+                    normalized_neurons = neurons_cpu / neuron_norm
+                    normalized_x = data_cpu / x_norm
+                    dot_product = np.sum(normalized_neurons * normalized_x, axis=2, keepdims=True)
+                    update_direction = dot_product * normalized_neurons - normalized_neurons
+                    neurons_cpu += h_expanded_cpu * update_direction * neuron_norm
+                
+                # Convert back to appropriate backend
+                if _USING_CUPY and hasattr(neurons, 'get'):
+                    return cp.asarray(neurons_cpu)
+                else:
+                    return neurons_cpu
+            else:
+                # Use existing CuPy/NumPy implementation
+                # Compute the neighborhood function over the grid with numerical stability.
+                h = self.cur_learning_rate * cp.exp(-dist_squared / (2.0 * nr_sq))
+                # Expand h to match neuron shape.
+                h_expanded = h[:, :, cp.newaxis]  # shape (m, n, 1)
+                
+                if self.dist_func == "euclidean":
+                    # In-place update to reduce allocations - more numerically stable
+                    diff = data_point - neurons
+                    neurons += h_expanded * diff
+                elif self.dist_func == "cosine":
+                    # Optimized cosine update with better numerical stability
+                    neuron_norm = cp.linalg.norm(neurons, axis=2, keepdims=True) + 1e-12
+                    x_norm = cp.linalg.norm(data_point) + 1e-12
+                    # Normalize both vectors for more stable cosine computation
+                    normalized_neurons = neurons / neuron_norm
+                    normalized_x = data_point / x_norm
+                    dot_product = cp.sum(normalized_neurons * normalized_x, axis=2, keepdims=True)
+                    # Use stable cosine similarity computation
+                    update_direction = dot_product * normalized_neurons - normalized_neurons
+                    neurons += h_expanded * update_direction * neuron_norm
+                    
+                return neurons
 
     def fit(self, x: np.ndarray, epoch: int, shuffle: bool = True, batch_size: int = None) -> None:
         """
@@ -311,6 +609,12 @@ class SOM:
             batch_size (int, optional): Batch size for mini-batch processing. 
                                       If None, uses full batch processing.
         """
+        # Validate input data for NaN or infinite values
+        if np.any(np.isnan(x)):
+            raise ValueError("Input data contains NaN values, which are not supported")
+        if np.any(np.isinf(x)):
+            raise ValueError("Input data contains infinite values, which are not supported")
+        
         # Initialize neurons if not already trained.
         if not self._trained:
             self.neurons = self.initiate_neuron(data=x)

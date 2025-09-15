@@ -56,6 +56,12 @@ def initiate_naive_sharding(X: np.array, k: int):
     Returns:
     numpy.ndarray: Initialized centroids.
     """
+    n_samples, n_features = X.shape
+    
+    # Handle edge case where k > number of data points
+    if k <= 0:
+        return np.empty((0, n_features))
+    
     # Step 1: Compute the sum of each data point's features
     composite_values = np.sum(X, axis=1)
 
@@ -67,9 +73,20 @@ def initiate_naive_sharding(X: np.array, k: int):
     shards = np.array_split(sorted_X, k)
 
     # Step 4: Compute the mean of each shard to determine centroids
-    centroids = np.array([np.mean(shard, axis=0) for shard in shards])
-
-    return centroids
+    centroids = []
+    for shard in shards:
+        if len(shard) > 0:
+            centroids.append(np.mean(shard, axis=0))
+        else:
+            # For empty shards, randomly duplicate an existing data point
+            if n_samples > 0:
+                random_idx = np.random.randint(0, n_samples)
+                centroids.append(X[random_idx].copy())
+            else:
+                # If no data points at all, create random centroid
+                centroids.append(np.random.randn(n_features))
+    
+    return np.array(centroids)
 
 # Function for He initialization
 def initiate_he(input_dim, output_dim):
@@ -123,8 +140,17 @@ def initiate_lsuv(input_dim, output_dim, X_batch, tol=0.1, max_iter=10):
     for _ in range(max_iter):
         activations = np.dot(X_batch, weights)  # Compute layer activations
         variance = np.var(activations)
+        
+        # Handle degenerate cases where variance is 0 or very small
+        if variance < 1e-8:
+            # Use He initialization as fallback for degenerate data
+            stddev = np.sqrt(2.0 / input_dim)
+            weights = np.random.randn(input_dim, output_dim) * stddev
+            break
+            
         if abs(variance - 1.0) < tol:
             break
+            
         weights /= np.sqrt(variance)
     
     return weights

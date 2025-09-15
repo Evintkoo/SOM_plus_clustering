@@ -81,6 +81,31 @@ from typing import Tuple
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
+# Input validation helper function
+def _validate_clustering_inputs(x: np.ndarray, labels: np.ndarray) -> None:
+    """
+    Validate inputs for clustering evaluation metrics.
+    
+    Args:
+        x (np.ndarray): The input data points
+        labels (np.ndarray): The cluster labels
+        
+    Raises:
+        ValueError: If inputs are invalid
+        IndexError: If dimensions don't match
+    """
+    if x.size == 0:
+        raise ValueError("Input data cannot be empty")
+    
+    if labels.size == 0:
+        raise ValueError("Labels cannot be empty")
+    
+    if x.shape[0] != labels.shape[0]:
+        raise IndexError("Number of data points must match number of labels")
+    
+    if x.shape[0] < 1:
+        raise ValueError("Must have at least one data point")
+
 # Unsupervised learning evaluation function
 
 def silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
@@ -96,6 +121,9 @@ def silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
         float: The Silhouette Coefficient. 
                 Returns 0.0 if there's only one cluster or if all clusters have only one sample.
     """
+    # Validate inputs
+    _validate_clustering_inputs(x, labels)
+    
     n_samples = x.shape[0]
     unique_labels = np.unique(labels)
 
@@ -159,6 +187,9 @@ def davies_bouldin_index(x: np.ndarray, labels: np.ndarray) -> float:
     Returns:
         float: The Davies-Bouldin Index.
     """
+    # Validate inputs
+    _validate_clustering_inputs(x, labels)
+    
     unique_labels = np.unique(labels)
     n_clusters = len(unique_labels)
 
@@ -206,6 +237,9 @@ def calinski_harabasz_score(x: np.ndarray, labels: np.ndarray) -> float:
     Returns:
         float: The Calinski-Harabasz Index.
     """
+    # Validate inputs
+    _validate_clustering_inputs(x, labels)
+    
     n_samples, _ = x.shape
     unique_labels = np.unique(labels)
     n_clusters = len(unique_labels)
@@ -235,6 +269,9 @@ def dunn_index(x: np.ndarray, labels: np.ndarray) -> float:
     Returns:
         float: The Dunn Index value.
     """
+    # Validate inputs
+    _validate_clustering_inputs(x, labels)
+    
     distances = squareform(pdist(x))
     unique_labels = np.unique(labels)
 
