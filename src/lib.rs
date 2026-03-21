@@ -1,4 +1,3 @@
-#[allow(unused_imports)]
 pub mod core;
 pub mod backend;
 pub mod serialize;
