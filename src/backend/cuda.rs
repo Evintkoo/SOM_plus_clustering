@@ -1,16 +1,29 @@
 #![cfg(feature = "cuda")]
 
+// NOTE: This backend converts f64 inputs to f32 for GPU computation (a ~7-digit
+// precision reduction). For distance computation this is generally acceptable.
+// For neighborhood_update, accumulated f32→f64 round-trips across training steps
+// mean the GPU training path is not numerically identical to the CPU path.
+// Precision-sensitive applications should use the CPU backend.
+
 use ndarray::{Array2, ArrayView1, ArrayView2};
 use cudarc::driver::{CudaDevice, CudaSlice, LaunchAsync, LaunchConfig};
 use crate::{SomError, core::distance::DistanceFunction};
 use std::sync::Arc;
+use once_cell::sync::Lazy;
 
-static PTX_EUCLIDEAN: &str = include_str!("shaders/euclidean_distances.ptx");
-static PTX_COSINE: &str = include_str!("shaders/cosine_distances.ptx");
-static PTX_NEIGHBORHOOD: &str = include_str!("shaders/neighborhood_update.ptx");
+static PTX_EUCLIDEAN: &str = include_str!(concat!(env!("OUT_DIR"), "/euclidean_distances.ptx"));
+static PTX_COSINE: &str = include_str!(concat!(env!("OUT_DIR"), "/cosine_distances.ptx"));
+static PTX_NEIGHBORHOOD: &str = include_str!(concat!(env!("OUT_DIR"), "/neighborhood_update.ptx"));
+
+static CUDA_DEVICE: Lazy<Result<Arc<CudaDevice>, String>> = Lazy::new(|| {
+    CudaDevice::new(0).map_err(|e| e.to_string())
+});
 
 fn get_device() -> Result<Arc<CudaDevice>, SomError> {
-    CudaDevice::new(0).map_err(|e| SomError::BackendUnavailable(e.to_string()))
+    CUDA_DEVICE.as_ref()
+        .map(|d| d.clone())
+        .map_err(|e| SomError::BackendUnavailable(e.clone()))
 }
 
 pub fn batch_distances(
@@ -43,7 +56,15 @@ pub fn batch_distances(
     let func = dev.get_func(module_name, fn_name)
         .ok_or_else(|| SomError::BackendUnavailable("kernel not found".into()))?;
 
-    let cfg = LaunchConfig::for_num_elems((n * k) as u32);
+    let threads_x = 16u32;
+    let threads_y = 16u32;
+    let grid_x = (n as u32 + threads_x - 1) / threads_x;
+    let grid_y = (k as u32 + threads_y - 1) / threads_y;
+    let cfg = LaunchConfig {
+        grid_dim: (grid_x, grid_y, 1),
+        block_dim: (threads_x, threads_y, 1),
+        shared_mem_bytes: 0,
+    };
     unsafe {
         func.launch(cfg, (&d_data, &d_neurons, &mut d_out, n as i32, k as i32, dim as i32))
     }
@@ -65,6 +86,14 @@ pub fn neighborhood_update(
     let dev = get_device()?;
     let mn = neurons.nrows();
     let dim = neurons.ncols();
+
+    let expected_len = mn;
+    let actual_len = influence.nrows() * influence.ncols();
+    if actual_len != expected_len {
+        return Err(SomError::BackendUnavailable(
+            format!("influence shape mismatch: expected {expected_len}, got {actual_len}")
+        ));
+    }
 
     let neu_f32: Vec<f32> = neurons.iter().map(|&x| x as f32).collect();
     let pt_f32: Vec<f32> = data_point.iter().map(|&x| x as f32).collect();

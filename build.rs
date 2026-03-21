@@ -1,29 +1,45 @@
 fn main() {
-    #[cfg(feature = "cuda")]
-    compile_cuda_kernels();
+    if std::env::var("CARGO_FEATURE_CUDA").is_ok() {
+        compile_cuda_kernels();
+    }
 
     #[cfg(feature = "metal")]
     compile_metal_shaders();
 }
 
-#[cfg(feature = "cuda")]
 fn compile_cuda_kernels() {
     use std::process::Command;
-    // Gracefully skip if nvcc is absent (CI without GPU toolkit)
-    if Command::new("nvcc").arg("--version").status().is_err() {
-        println!("cargo:warning=nvcc not found — CUDA kernels will not be compiled. Install CUDA toolkit to use the cuda feature.");
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+
+    // Write stub PTX files when nvcc is absent so `cargo check --features cuda` still works
+    if Command::new("nvcc").arg("--version").output().is_err() {
+        println!("cargo:warning=nvcc not found — CUDA feature stubs only");
+        for name in &["euclidean_distances", "cosine_distances", "neighborhood_update"] {
+            let ptx_path = format!("{}/{}.ptx", out_dir, name);
+            std::fs::write(&ptx_path, "// stub\n").unwrap();
+        }
         return;
     }
+
     let shaders_dir = "src/backend/shaders";
     for name in &["euclidean_distances", "cosine_distances", "neighborhood_update"] {
-        let cu = format!("{}/{}.cu", shaders_dir, name);
-        let ptx = format!("{}/{}.ptx", shaders_dir, name);
+        let cu_path = format!("{}/{}.cu", shaders_dir, name);
+        let ptx_path = format!("{}/{}.ptx", out_dir, name);
         let status = Command::new("nvcc")
-            .args(["--ptx", "-o", &ptx, &cu])
-            .status()
-            .expect("nvcc failed unexpectedly");
-        assert!(status.success(), "nvcc failed for {}", cu);
-        println!("cargo:rerun-if-changed={}", cu);
+            .args(["--ptx", "-o", &ptx_path, &cu_path])
+            .status();
+        match status {
+            Ok(s) if s.success() => {}
+            Ok(s) => {
+                eprintln!("cargo:error=nvcc exited with status {} for {}.cu", s, name);
+                std::process::exit(1);
+            }
+            Err(e) => {
+                eprintln!("cargo:error=nvcc invocation failed: {}", e);
+                std::process::exit(1);
+            }
+        }
+        println!("cargo:rerun-if-changed={}", cu_path);
     }
 }
 
