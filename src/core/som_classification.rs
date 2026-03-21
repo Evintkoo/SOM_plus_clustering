@@ -60,6 +60,9 @@ impl SomClassification {
         batch_size: Option<usize>,
     ) -> Result<(), SomError> {
         self.som.fit(x, epoch, shuffle, batch_size)?;
+        if x.nrows() == 0 {
+            return Err(SomError::InvalidInputData);
+        }
         // Assign each neuron the label of its closest training point
         let centers = self.som.cluster_centers(); // [m*n, dim]
         let m = self.som.m;
