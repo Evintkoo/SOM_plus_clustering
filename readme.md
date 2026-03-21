@@ -1,181 +1,106 @@
----
+# som_plus_clustering
 
-# Self-Organizing Map (SOM) Implementation
+Industrial-grade Self-Organizing Map (SOM) and clustering library for Rust.
 
-This repository contains an advanced implementation of the Self-Organizing Map (SOM) algorithm for unsupervised learning and clustering tasks. The SOM algorithm is particularly useful for visualizing high-dimensional data, performing dimensionality reduction, and clustering. This implementation is inspired by the paper "A novel self-organizing map (SOM) learning algorithm with nearest and farthest neurons" by Chaudhary, Bhatia, and Ahlawat (2014) and includes several unique features to enhance performance and flexibility.
-
-## Table of Contents
-- [Overview](#overview)
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-  - [Importing the SOM Class](#importing-the-som-class)
-  - [Creating an SOM Instance](#creating-an-som-instance)
-  - [Training the SOM](#training-the-som)
-  - [Making Predictions](#making-predictions)
-  - [Multiprocessing for Faster Training](#multiprocessing-for-faster-training)
-  - [Evaluating the SOM](#evaluating-the-som)
-  - [Visualization and Analysis](#visualization-and-analysis)
-- [Advanced Use Cases](#advanced-use-cases)
-- [Performance Optimization](#performance-optimization)
-- [Evaluation Metrics](#evaluation-metrics)
-- [Error Handling and Debugging](#error-handling-and-debugging)
-- [Contribution Guidelines](#contribution-guidelines)
-- [Licensing and Acknowledgments](#licensing-and-acknowledgments)
-- [References](#references)
-
-## Overview
-
-### Purpose and Benefits
-The main purpose of this SOM implementation is to provide an efficient and flexible tool for clustering and visualizing high-dimensional data. This implementation includes various enhancements, such as multiple initialization methods, distance metrics, and evaluation criteria, making it suitable for a wide range of applications, from data visualization to anomaly detection.
-
-### Algorithm Description
-The Self-Organizing Map (SOM) is a type of artificial neural network trained using unsupervised learning to produce a low-dimensional (typically two-dimensional) representation of input data. It uses competitive learning to find the best matching unit (BMU) and updates the neighborhood of the BMU using a Gaussian function to preserve the topological properties of the input space.
+[![Crates.io](https://img.shields.io/crates/v/som_plus_clustering.svg)](https://crates.io/crates/som_plus_clustering)
+[![docs.rs](https://img.shields.io/docsrs/som_plus_clustering)](https://docs.rs/som_plus_clustering)
+[![CI](https://github.com/Evintkoo/SOM_plus_clustering/actions/workflows/rust.yml/badge.svg)](https://github.com/Evintkoo/SOM_plus_clustering/actions/workflows/rust.yml)
 
 ## Features
 
-- **Initialization Methods:** Random, KDE, KMeans, KDE-KMeans, KMeans++, som++
-- **Distance Functions:** Euclidean, Cosine
-- **Evaluation Metrics:** Silhouette score, Davies-Bouldin index, Calinski-Harabasz score, Dunn index
-- **Multiprocessing Support:** Leveraging joblib for parallel processing to accelerate training
-- **Customizability:** Allows for customization of initialization methods, distance functions, learning rate, neighborhood functions, and more
+- **Self-Organizing Maps** — unsupervised topology-preserving dimensionality reduction
+- **SOM Classification** — supervised label propagation via SOM
+- **KMeans** — multiple init strategies: Random, KMeans++, KDE-KMeans, SOM++, and more
+- **Model selection** — automatic best-model picking via Silhouette score
+- **CPU backend** — parallel training via [rayon](https://github.com/rayon-rs/rayon)
+- **CUDA backend** — optional GPU acceleration (`--features cuda`, requires CUDA Toolkit)
+- **Metal backend** — optional GPU acceleration on macOS (`--features metal`)
+- **Serialization** — bincode v2 (default) + JSON (`--features serde-json`)
 
 ## Installation
 
-Clone the repository and install the required dependencies:
-
-```pwsh
-git clone https://github.com/Evintkoo/SOM_plus_clustering.git
-cd SOM_plus_clustering
-pip install -r requirements.txt
+```toml
+[dependencies]
+som_plus_clustering = "0.1"
 ```
 
-### Requirements
-- Python 3.7 or higher
-- Libraries: `numpy`, `joblib`, `matplotlib`, `scipy` (for KDE), and other dependencies listed in `requirements.txt`.
-
-## Usage
-
-### Importing the SOM Class
-
-```python
-from som import SOM
+For GPU acceleration on macOS:
+```toml
+[dependencies]
+som_plus_clustering = { version = "0.1", features = ["metal"] }
 ```
 
-### Creating an SOM Instance
+## Quick Start
 
-```python
-som = SOM(
-    m=10, 
-    n=10, 
-    dim=3, 
-    initiate_method='random', 
-    learning_rate=0.5, 
-    neighbour_rad=1.0, 
-    distance_function='euclidean', 
-    max_iter=1000
-)
+```rust
+use som_plus_clustering::{SomBuilder, DistanceFunction, InitMethod, EvalMethod};
+use ndarray::Array2;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // 100 samples, 4 features
+    let data = Array2::<f64>::zeros((100, 4));
+
+    // Build and train a 10x10 SOM
+    let mut som = SomBuilder::new()
+        .grid(10, 10)
+        .dim(4)
+        .learning_rate(0.5)?
+        .neighbor_radius(3.0)
+        .max_iter(200)
+        .init_method(InitMethod::KMeansPlusPlus)
+        .distance(DistanceFunction::Euclidean)
+        .build();
+
+    som.fit(&data.view(), 10, true, None)?;
+
+    // Predict cluster index for each sample
+    let labels = som.predict(&data.view())?;
+
+    // Evaluate
+    let scores = som.evaluate(&data.view(), &[EvalMethod::Silhouette])?;
+    if let Some(&score) = scores.get(&EvalMethod::Silhouette) {
+        println!("Silhouette score: {score:.4}");
+    }
+
+    Ok(())
+}
 ```
 
-### Training the SOM
+## Initialization Methods
 
-```python
-import numpy as np
-data = np.random.random((100, 3))  # Example data
-
-som.fit(x=data, epoch=100, shuffle=True, verbose=True)
-```
-
-### Making Predictions
-
-```python
-labels = som.predict(data)
-print(labels)
-```
-
-### Multiprocessing for Faster Training
-
-### GPU Acceleration
-
-This implementation uses CuPy to perform computation on the GPU. If `cupy` is not installed, imports will fail. Install a CUDA-compatible CuPy wheel (see Installation) to use the GPU path.
-
-### Evaluating the SOM
-
-```python
-silhouette_score = som.evaluate(data, method=['silhouette'])
-print(silhouette_score)
-
-all_scores = som.evaluate(data, method=['all'])
-print(all_scores)
-```
-
-### Visualization and Analysis
-
-To visualize the trained SOM, you can use Python libraries like `matplotlib`:
-
-```python
-import matplotlib.pyplot as plt
-
-# Visualize the neurons
-plt.imshow(som.cluster_center_.reshape(som.m, som.n, som.dim))
-plt.title('Self-Organizing Map Neurons')
-plt.show()
-```
-
-## Advanced Use Cases
-
-1. **Anomaly Detection:** Use SOM to identify anomalies in time series data or financial transactions by detecting clusters that differ significantly from the norm.
-2. **Customer Segmentation:** Segment customers based on purchasing patterns, demographics, or behavior data.
-3. **Dimensionality Reduction:** Reduce high-dimensional data into a lower-dimensional space while preserving its topological properties.
-4. **Integration with Machine Learning Tools:** Use the SOM output as features for downstream machine learning tasks, such as classification or regression.
-
-## Performance Optimization
-
-- Keep data and model on the GPU to avoid host-device transfers. This code uses CuPy end-to-end during training and prediction.
-- Data Preprocessing: Normalize input data to ensure faster convergence and better clustering performance.
-- Use the benchmarking script to get a quick idea of throughput:
-
-```pwsh
-python bench_som.py
-```
+| Method | Description |
+|--------|-------------|
+| `Random` | Uniform random in data range |
+| `KMeans` | K-Means centroids |
+| `KMeansPlusPlus` | K-Means++ seeding |
+| `KdekMeans` | KDE-guided K-Means |
+| `SomPlusPlus` | SOM-aware diversity seeding |
+| `Zero` | Identity-based initialization |
+| `He` | He weight initialization |
+| `LeCun` | LeCun weight initialization |
+| `NaiveSharding` | Column-based sharding |
+| `Lsuv` | Layer-sequential unit variance |
+| `Kde` | Kernel Density Estimation peaks |
 
 ## Evaluation Metrics
 
-- **Silhouette Score:** Measures how similar each point is to its own cluster compared to other clusters.
-- **Davies-Bouldin Index:** Computes the average similarity ratio of each cluster with the most similar cluster.
-- **Calinski-Harabasz Score:** Evaluates the ratio of between-cluster variance to within-cluster variance.
-- **Dunn Index:** Determines the distance between clusters divided by the size of the largest cluster.
+`EvalMethod::Silhouette`, `DaviesBouldin`, `CalinskiHarabasz`, `Dunn`, or `All`.
 
-## Error Handling and Debugging
+## Serialization
 
-- **Common Errors:**
-  - **ValueError:** Raised when an invalid parameter is provided. Check your inputs against the valid options listed in the documentation.
-  - **RuntimeError:** Thrown if the SOM is used before fitting the data.
-  - **Dimension Mismatch:** Ensure that the input data dimensions match the expected dimensions specified during SOM initialization.
-- **Debugging Tips:**
-  - Use verbose mode (`verbose=True`) during training to see progress and intermediate results.
-  - Check input data for NaN or infinite values which may cause unexpected behavior.
+```rust
+// Save
+som.save("model.bin")?;
 
-## Contribution Guidelines
+// Load
+let som = som_plus_clustering::Som::load("model.bin")?;
+```
 
-We welcome contributions from the community! Please follow these steps to contribute:
+JSON support:
+```toml
+som_plus_clustering = { version = "0.1", features = ["serde-json"] }
+```
 
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature-branch`).
-3. Make your changes and commit them (`git commit -am 'Add new feature'`).
-4. Push to the branch (`git push origin feature-branch`).
-5. Open a Pull Request and describe the changes you made.
+## License
 
-## Licensing and Acknowledgments
-
-This project is licensed under the MIT License. See the `LICENSE` file for more details.
-
-### Acknowledgments
-
-- This implementation is inspired by the paper: Chaudhary, V., Bhatia, R. S., & Ahlawat, A. K. (2014). "A novel self-organizing map (SOM) learning algorithm with nearest and farthest neurons." Alexandria Engineering Journal, 53(4), 827-831. [Link to paper](https://doi.org/10.1016/j.aej.2014.09.007)
-
-## References
-
-- Chaudhary, V., Bhatia, R. S., & Ahlawat, A. K. (2014). "A novel self-organizing map (SOM) learning algorithm with nearest and farthest neurons." Alexandria Engineering Journal, 53(4), 827-831. [Link to paper](https://doi.org/10.1016/j.aej.2014.09.007)
-
----
+MIT

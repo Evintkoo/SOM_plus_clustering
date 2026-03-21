@@ -1,0 +1,44 @@
+[package]
+name = "som_plus_clustering"
+version = "0.1.0"
+edition = "2021"
+authors = ["Evint Leovonzko"]
+description = "Industrial-grade Self-Organizing Map and clustering — pure Rust, CPU/CUDA/Metal"
+documentation = "https://docs.rs/som_plus_clustering"
+readme = "README.md"
+license = "MIT"
+repository = "https://github.com/Evintkoo/SOM_plus_clustering"
+keywords = ["machine-learning", "clustering", "som", "self-organizing-map", "kmeans"]
+categories = ["science", "algorithms"]
+exclude = ["modules/", "tests/conftest.py", "*.pkl", "data.csv", "*.ipynb"]
+
+[features]
+default    = []
+cuda       = ["dep:cudarc"]
+metal      = ["dep:metal"]
+serde-json = ["dep:serde_json"]
+
+[dependencies]
+ndarray       = { version = "0.16", features = ["rayon", "serde"] }
+ndarray-rand  = "0.16"
+rayon         = "1.10"
+rand          = "0.9"
+serde         = { version = "1", features = ["derive"] }
+bincode       = "2"
+thiserror     = "1"
+once_cell     = "1"
+cudarc        = { version = "0.12", optional = true }
+metal         = { version = "0.33", optional = true }
+serde_json    = { version = "1", optional = true }
+
+[dev-dependencies]
+criterion  = { version = "0.5", features = ["html_reports"] }
+proptest   = "1"
+
+[[bench]]
+name    = "bench_som"
+harness = false
+
+[[bench]]
+name    = "bench_kmeans"
+harness = false
