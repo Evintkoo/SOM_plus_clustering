@@ -4,7 +4,7 @@ use crate::SomError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum EvalMethod { Silhouette, DaviesBouldin, CalinskiHarabasz, Dunn, All }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ClassEvalMethod { Accuracy, F1, Recall, All }
 
 fn pairwise_distances(data: &ArrayView2<f64>) -> Array2<f64> {
