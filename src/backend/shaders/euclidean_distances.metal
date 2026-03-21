@@ -10,9 +10,9 @@ kernel void batch_euclidean(
     constant int& dim            [[buffer(5)]],
     uint2 gid                    [[thread_position_in_grid]]
 ) {
-    int i = (int)gid.x;
-    int j = (int)gid.y;
-    if (i >= n || j >= k) return;
+    uint i = gid.x;
+    uint j = gid.y;
+    if (i >= (uint)n || j >= (uint)k) return;
     float sum = 0.0f;
     for (int d = 0; d < dim; d++) {
         float diff = data[i*dim+d] - neurons[j*dim+d];
@@ -30,9 +30,9 @@ kernel void batch_cosine(
     constant int& dim            [[buffer(5)]],
     uint2 gid                    [[thread_position_in_grid]]
 ) {
-    int i = (int)gid.x;
-    int j = (int)gid.y;
-    if (i >= n || j >= k) return;
+    uint i = gid.x;
+    uint j = gid.y;
+    if (i >= (uint)n || j >= (uint)k) return;
     float dot = 0.0f, norm_a = 0.0f, norm_b = 0.0f;
     for (int d = 0; d < dim; d++) {
         float a = data[i*dim+d], b = neurons[j*dim+d];

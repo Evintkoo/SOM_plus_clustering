@@ -5,20 +5,44 @@
 // The GPU training path is not numerically identical to the CPU path.
 
 use ndarray::{Array2, ArrayView1, ArrayView2};
-use metal::{Device, MTLResourceOptions, MTLSize};
+use metal::{CommandQueue, ComputePipelineState, Device, MTLResourceOptions, MTLSize};
 use once_cell::sync::Lazy;
 use crate::{SomError, core::distance::DistanceFunction};
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/som_kernels.metallib"));
 
-static METAL_DEVICE: Lazy<Result<Device, String>> = Lazy::new(|| {
-    Device::system_default()
-        .ok_or_else(|| "No Metal device found".to_string())
+struct MetalState {
+    device: Device,
+    queue: CommandQueue,
+    pipeline_euclidean: ComputePipelineState,
+    pipeline_cosine: ComputePipelineState,
+}
+
+// SAFETY: The metal crate wraps Objective-C objects that are safe to share across
+// threads on macOS (the underlying MTLDevice, MTLCommandQueue, and
+// MTLComputePipelineState objects are thread-safe per Apple's Metal specification).
+unsafe impl Send for MetalState {}
+unsafe impl Sync for MetalState {}
+
+static METAL_STATE: Lazy<Result<MetalState, String>> = Lazy::new(|| {
+    let dev = Device::system_default()
+        .ok_or_else(|| "No Metal device found".to_string())?;
+    let lib = dev.new_library_with_data(METALLIB)
+        .map_err(|e| e.to_string())?;
+    let fn_euclidean = lib.get_function("batch_euclidean", None)
+        .map_err(|e| e.to_string())?;
+    let fn_cosine = lib.get_function("batch_cosine", None)
+        .map_err(|e| e.to_string())?;
+    let pipeline_euclidean = dev.new_compute_pipeline_state_with_function(&fn_euclidean)
+        .map_err(|e| e.to_string())?;
+    let pipeline_cosine = dev.new_compute_pipeline_state_with_function(&fn_cosine)
+        .map_err(|e| e.to_string())?;
+    let queue = dev.new_command_queue();
+    Ok(MetalState { device: dev, queue, pipeline_euclidean, pipeline_cosine })
 });
 
-fn get_device() -> Result<&'static Device, SomError> {
-    METAL_DEVICE.as_ref()
-        .map_err(|e| SomError::BackendUnavailable(e.clone()))
+fn get_state() -> Result<&'static MetalState, SomError> {
+    METAL_STATE.as_ref().map_err(|e| SomError::BackendUnavailable(e.clone()))
 }
 
 pub fn batch_distances(
@@ -26,19 +50,12 @@ pub fn batch_distances(
     neurons: &Array2<f64>,
     dist_fn: DistanceFunction,
 ) -> Result<Array2<f64>, SomError> {
-    let dev = get_device()?;
+    let state = get_state()?;
 
-    let lib = dev.new_library_with_data(METALLIB)
-        .map_err(|e| SomError::BackendUnavailable(e))?;
-
-    let fn_name = match dist_fn {
-        DistanceFunction::Cosine => "batch_cosine",
-        _ => "batch_euclidean",
+    let pipeline = match dist_fn {
+        DistanceFunction::Cosine => &state.pipeline_cosine,
+        _ => &state.pipeline_euclidean,
     };
-    let kernel = lib.get_function(fn_name, None)
-        .map_err(|e| SomError::BackendUnavailable(e))?;
-    let pipeline = dev.new_compute_pipeline_state_with_function(&*kernel)
-        .map_err(|e| SomError::BackendUnavailable(e))?;
 
     let n = data.nrows();
     let k = neurons.nrows();
@@ -47,43 +64,42 @@ pub fn batch_distances(
     let neu_f32: Vec<f32> = neurons.iter().map(|&x| x as f32).collect();
     let out_len = n * k;
 
-    let buf_data = dev.new_buffer_with_data(
+    let buf_data = state.device.new_buffer_with_data(
         data_f32.as_ptr() as *const _,
-        (data_f32.len() * 4) as u64,
+        data_f32.len() as u64 * 4u64,
         MTLResourceOptions::StorageModeShared,
     );
-    let buf_neurons = dev.new_buffer_with_data(
+    let buf_neurons = state.device.new_buffer_with_data(
         neu_f32.as_ptr() as *const _,
-        (neu_f32.len() * 4) as u64,
+        neu_f32.len() as u64 * 4u64,
         MTLResourceOptions::StorageModeShared,
     );
-    let buf_out = dev.new_buffer(
-        (out_len * 4) as u64,
+    let buf_out = state.device.new_buffer(
+        out_len as u64 * 4u64,
         MTLResourceOptions::StorageModeShared,
     );
     let n_i = n as i32;
     let k_i = k as i32;
     let dim_i = dim as i32;
-    let buf_n = dev.new_buffer_with_data(
+    let buf_n = state.device.new_buffer_with_data(
         &n_i as *const i32 as *const _,
         4,
         MTLResourceOptions::StorageModeShared,
     );
-    let buf_k = dev.new_buffer_with_data(
+    let buf_k = state.device.new_buffer_with_data(
         &k_i as *const i32 as *const _,
         4,
         MTLResourceOptions::StorageModeShared,
     );
-    let buf_d = dev.new_buffer_with_data(
+    let buf_d = state.device.new_buffer_with_data(
         &dim_i as *const i32 as *const _,
         4,
         MTLResourceOptions::StorageModeShared,
     );
 
-    let queue = dev.new_command_queue();
-    let cmd = queue.new_command_buffer();
+    let cmd = state.queue.new_command_buffer();
     let enc = cmd.new_compute_command_encoder();
-    enc.set_compute_pipeline_state(&pipeline);
+    enc.set_compute_pipeline_state(pipeline);
     enc.set_buffer(0, Some(&buf_data), 0);
     enc.set_buffer(1, Some(&buf_neurons), 0);
     enc.set_buffer(2, Some(&buf_out), 0);
@@ -102,6 +118,10 @@ pub fn batch_distances(
     cmd.commit();
     cmd.wait_until_completed();
 
+    // SAFETY: `buf_out` has StorageModeShared so its contents are CPU-accessible.
+    // `cmd.wait_until_completed()` above provides the GPU→CPU memory barrier
+    // guaranteeing all writes are visible before we read the pointer.
+    // `buf_out` is alive for the entire duration of this unsafe block.
     let ptr = buf_out.contents() as *const f32;
     let slice = unsafe { std::slice::from_raw_parts(ptr, out_len) };
     Array2::from_shape_vec((n, k), slice.iter().map(|&x| x as f64).collect())

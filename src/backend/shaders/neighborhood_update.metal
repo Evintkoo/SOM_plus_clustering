@@ -1,3 +1,8 @@
+// NOTE: This kernel implements the standard SOM Euclidean weight update:
+//   w += h * (x - w)
+// It does NOT handle the Cosine distance update (which requires projection
+// onto the unit sphere). When this shader is wired into Rust in v0.2,
+// it must not be dispatched when dist_fn == Cosine.
 #include <metal_stdlib>
 using namespace metal;
 

@@ -1,4 +1,6 @@
 fn main() {
+    println!("cargo:rerun-if-changed=build.rs");
+
     if std::env::var("CARGO_FEATURE_CUDA").is_ok() {
         compile_cuda_kernels();
     }
