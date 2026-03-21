@@ -41,22 +41,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data = Array2::<f64>::zeros((100, 4));
 
     // Build and train a 10x10 SOM
-    let mut som = SomBuilder::new(10, 10, 4)
+    let mut som = SomBuilder::new()
+        .grid(10, 10)
+        .dim(4)
         .learning_rate(0.5)?
-        .radius(3.0)
+        .neighbor_radius(3.0)
         .max_iter(200)
         .init_method(InitMethod::KMeansPlusPlus)
-        .distance_function(DistanceFunction::Euclidean)
+        .distance(DistanceFunction::Euclidean)
         .build();
 
-    som.fit(&data)?;
+    som.fit(&data.view(), 10, true, None)?;
 
     // Predict cluster index for each sample
-    let labels = som.predict(&data)?;
+    let labels = som.predict(&data.view())?;
 
     // Evaluate
-    let score = som.evaluate(&data, EvalMethod::Silhouette)?;
-    println!("Silhouette score: {score:.4}");
+    let scores = som.evaluate(&data.view(), &[EvalMethod::Silhouette])?;
+    if let Some(&score) = scores.get(&EvalMethod::Silhouette) {
+        println!("Silhouette score: {score:.4}");
+    }
 
     Ok(())
 }
@@ -89,7 +93,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 som.save("model.bin")?;
 
 // Load
-let som = som_plus_clustering::SomBuilder::load("model.bin")?;
+let som = som_plus_clustering::Som::load("model.bin")?;
 ```
 
 JSON support:
