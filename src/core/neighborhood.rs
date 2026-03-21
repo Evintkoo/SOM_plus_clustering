@@ -13,12 +13,16 @@ pub fn gaussian_grid(
     bmu_row: usize, bmu_col: usize,
     learning_rate: f64, radius: f64,
 ) -> Array2<f64> {
+    debug_assert!(bmu_row < m, "bmu_row {} out of bounds for m={}", bmu_row, m);
+    debug_assert!(bmu_col < n, "bmu_col {} out of bounds for n={}", bmu_col, n);
+
     let mut grid = Array2::<f64>::zeros((m, n));
+    let r2 = (radius * radius).max(1e-18);
     for i in 0..m {
         for j in 0..n {
-            let dr = (i as f64 - bmu_row as f64).powi(2);
-            let dc = (j as f64 - bmu_col as f64).powi(2);
-            grid[[i, j]] = gaussian(dr + dc, learning_rate, radius);
+            let dr = i as f64 - bmu_row as f64;
+            let dc = j as f64 - bmu_col as f64;
+            grid[[i, j]] = learning_rate * (-(dr * dr + dc * dc) / (2.0 * r2)).exp();
         }
     }
     grid
