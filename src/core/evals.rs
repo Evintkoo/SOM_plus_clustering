@@ -141,6 +141,9 @@ pub fn calinski_harabasz_score(
         v
     };
     let k = unique.len();
+    if k <= 1 {
+        return Ok(0.0);
+    }
     let overall: Array1<f64> = data.mean_axis(Axis(0)).unwrap();
     let mut between = 0.0_f64;
     let mut within = 0.0_f64;
@@ -176,6 +179,9 @@ pub fn dunn_index(
         v.dedup();
         v
     };
+    if unique.len() <= 1 {
+        return Ok(0.0);
+    }
     let dists = pairwise_distances(data);
     let mut min_inter = f64::INFINITY;
     let mut max_intra = 0.0_f64;
@@ -211,6 +217,9 @@ pub fn bcubed_scores(
     labels: &ArrayView1<usize>,
 ) -> (f64, f64) {
     let n = clusters.len();
+    if n == 0 {
+        return (0.0, 0.0);
+    }
     let (mut prec, mut rec) = (0.0_f64, 0.0_f64);
     for i in 0..n {
         let same_cluster: Vec<usize> = (0..n).filter(|&j| clusters[j] == clusters[i]).collect();
