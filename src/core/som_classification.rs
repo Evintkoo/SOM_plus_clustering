@@ -1,6 +1,6 @@
 use crate::backend::Backend;
 use crate::{
-    core::evals::{accuracy, ClassEvalMethod},
+    core::evals::{accuracy, bcubed_scores, ClassEvalMethod},
     core::som::{InitMethod, Som, SomBuilder},
     SomError,
 };
@@ -111,6 +111,19 @@ impl SomClassification {
         let run_all = methods.contains(&ClassEvalMethod::All);
         if run_all || methods.contains(&ClassEvalMethod::Accuracy) {
             out.insert(ClassEvalMethod::Accuracy, accuracy(y, &pred.view()));
+        }
+        if run_all || methods.contains(&ClassEvalMethod::F1) {
+            let (bcubed_p, bcubed_r) = bcubed_scores(&pred.view(), y);
+            let f1 = if bcubed_p + bcubed_r > 0.0 {
+                2.0 * bcubed_p * bcubed_r / (bcubed_p + bcubed_r)
+            } else {
+                0.0
+            };
+            out.insert(ClassEvalMethod::F1, f1);
+        }
+        if run_all || methods.contains(&ClassEvalMethod::Recall) {
+            let (_, bcubed_r) = bcubed_scores(&pred.view(), y);
+            out.insert(ClassEvalMethod::Recall, bcubed_r);
         }
         Ok(out)
     }

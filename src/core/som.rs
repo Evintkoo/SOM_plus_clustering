@@ -24,6 +24,8 @@ pub enum InitMethod {
     Random,
     KMeans,
     KMeansPlusPlus,
+    /// KDE-seeded K-Means. In v0.1, uses KDE local maxima as initial centroids
+    /// (identical to [`InitMethod::Kde`]). Lloyd's iteration refinement is planned for v0.2.
     KdekMeans,
     SomPlusPlus,
     Zero,
@@ -35,14 +37,14 @@ pub enum InitMethod {
 }
 
 pub struct SomBuilder {
-    pub m: usize,
-    pub n: usize,
-    pub dim: usize,
-    pub learning_rate: f64,
-    pub neighbor_radius: f64,
-    pub init_method: InitMethod,
-    pub dist_func: DistanceFunction,
-    pub max_iter: Option<usize>,
+    pub(crate) m: usize,
+    pub(crate) n: usize,
+    pub(crate) dim: usize,
+    pub(crate) learning_rate: f64,
+    pub(crate) neighbor_radius: f64,
+    pub(crate) init_method: InitMethod,
+    pub(crate) dist_func: DistanceFunction,
+    pub(crate) max_iter: Option<usize>,
 }
 
 impl Default for SomBuilder {
@@ -190,10 +192,9 @@ impl Som {
                 km.centroids().clone()
             }
             InitMethod::Kde => initiate_kde(data, k, None)?,
-            InitMethod::KdekMeans => {
-                // Use KDE to get good starting centroids
-                initiate_kde(data, k, None)?
-            }
+            // v0.1: KDE seeds without Lloyd's refinement (same as Kde).
+            // TODO(v0.2): Add KMeans Lloyd's iteration post-KDE seeding.
+            InitMethod::KdekMeans => initiate_kde(data, k, None)?,
         };
         Ok(neurons)
     }
@@ -301,6 +302,17 @@ impl Som {
                 .0
         });
         Ok(labels)
+    }
+
+    pub fn fit_predict(
+        &mut self,
+        data: &ArrayView2<f64>,
+        epoch: usize,
+        shuffle: bool,
+        batch_size: Option<usize>,
+    ) -> Result<Array1<usize>, SomError> {
+        self.fit(data, epoch, shuffle, batch_size)?;
+        self.predict(data)
     }
 
     pub fn cluster_centers(&self) -> Array2<f64> {
