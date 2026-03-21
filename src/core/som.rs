@@ -331,12 +331,58 @@ impl Som {
         Ok(crate::core::evals::bcubed_scores(&clusters.view(), y_true))
     }
 
-    pub fn save(&self, _path: &str) -> Result<(), SomError> {
-        todo!("save: implement in Task 11")
+    pub fn save(&self, path: &str) -> Result<(), SomError> {
+        use crate::core::distance::DistanceFunction;
+        let dist_func_byte = match self.dist_func {
+            DistanceFunction::Euclidean => 0u8,
+            DistanceFunction::Cosine => 1u8,
+        };
+        let state = crate::serialize::SomState {
+            m: self.m,
+            n: self.n,
+            dim: self.dim,
+            neurons: self.neurons.iter().cloned().collect(),
+            initial_lr: self.initial_lr,
+            cur_lr: self.cur_lr,
+            initial_rad: self.initial_rad,
+            cur_rad: self.cur_rad,
+            dist_func: dist_func_byte,
+            trained: self.trained,
+        };
+        crate::serialize::save_bincode(&state, path)
     }
 
-    pub fn load(_path: &str) -> Result<Self, SomError> {
-        todo!("load: implement in Task 11")
+    pub fn load(path: &str) -> Result<Self, SomError> {
+        use crate::core::distance::DistanceFunction;
+        use crate::backend::Backend;
+        use ndarray::Array2;
+        let state = crate::serialize::load_bincode(path)?;
+        let neurons = Array2::from_shape_vec(
+            (state.m * state.n, state.dim),
+            state.neurons,
+        ).map_err(|_| SomError::DimensionMismatch {
+            expected: state.m * state.n * state.dim,
+            got: 0,
+        })?;
+        let dist_func = match state.dist_func {
+            1 => DistanceFunction::Cosine,
+            _ => DistanceFunction::Euclidean,
+        };
+        Ok(Som {
+            m: state.m,
+            n: state.n,
+            dim: state.dim,
+            neurons,
+            initial_lr: state.initial_lr,
+            cur_lr: state.cur_lr,
+            initial_rad: state.initial_rad,
+            cur_rad: state.cur_rad,
+            init_method: InitMethod::Random, // restored default — not saved
+            dist_func,
+            max_iter: None,
+            trained: state.trained,
+            backend: Backend::Cpu, // always restores to Cpu (not serialized)
+        })
     }
 }
 
