@@ -1,0 +1,170 @@
+[
+  {
+    "name": "s1",
+    "n_true_clusters": 15,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 5
+  },
+  {
+    "name": "s2",
+    "n_true_clusters": 15,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 5
+  },
+  {
+    "name": "s3",
+    "n_true_clusters": 15,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 5
+  },
+  {
+    "name": "s4",
+    "n_true_clusters": 15,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 5
+  },
+  {
+    "name": "a1",
+    "n_true_clusters": 20,
+    "som_m": 9,
+    "som_n": 9,
+    "epochs": 5
+  },
+  {
+    "name": "a2",
+    "n_true_clusters": 35,
+    "som_m": 12,
+    "som_n": 12,
+    "epochs": 5
+  },
+  {
+    "name": "a3",
+    "n_true_clusters": 50,
+    "som_m": 15,
+    "som_n": 15,
+    "epochs": 5
+  },
+  {
+    "name": "moons",
+    "n_true_clusters": 2,
+    "som_m": 5,
+    "som_n": 5,
+    "epochs": 10
+  },
+  {
+    "name": "circles",
+    "n_true_clusters": 2,
+    "som_m": 5,
+    "som_n": 5,
+    "epochs": 10
+  },
+  {
+    "name": "spiral",
+    "n_true_clusters": 3,
+    "som_m": 5,
+    "som_n": 5,
+    "epochs": 10
+  },
+  {
+    "name": "anisotropic",
+    "n_true_clusters": 3,
+    "som_m": 5,
+    "som_n": 5,
+    "epochs": 10
+  },
+  {
+    "name": "varied_density",
+    "n_true_clusters": 3,
+    "som_m": 5,
+    "som_n": 5,
+    "epochs": 10
+  },
+  {
+    "name": "iris",
+    "n_true_clusters": 3,
+    "som_m": 5,
+    "som_n": 5,
+    "epochs": 10
+  },
+  {
+    "name": "wine",
+    "n_true_clusters": 3,
+    "som_m": 5,
+    "som_n": 5,
+    "epochs": 10
+  },
+  {
+    "name": "breast_cancer",
+    "n_true_clusters": 2,
+    "som_m": 6,
+    "som_n": 6,
+    "epochs": 10
+  },
+  {
+    "name": "digits",
+    "n_true_clusters": 10,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 10
+  },
+  {
+    "name": "scale_1k",
+    "n_true_clusters": 5,
+    "som_m": 10,
+    "som_n": 10,
+    "epochs": 10
+  },
+  {
+    "name": "scale_5k",
+    "n_true_clusters": 5,
+    "som_m": 10,
+    "som_n": 10,
+    "epochs": 5
+  },
+  {
+    "name": "scale_10k",
+    "n_true_clusters": 5,
+    "som_m": 10,
+    "som_n": 10,
+    "epochs": 5
+  },
+  {
+    "name": "scale_50k",
+    "n_true_clusters": 5,
+    "som_m": 10,
+    "som_n": 10,
+    "epochs": 5
+  },
+  {
+    "name": "dim_32",
+    "n_true_clusters": 5,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 10
+  },
+  {
+    "name": "dim_64",
+    "n_true_clusters": 5,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 10
+  },
+  {
+    "name": "dim_128",
+    "n_true_clusters": 5,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 10
+  },
+  {
+    "name": "dim_256",
+    "n_true_clusters": 5,
+    "som_m": 8,
+    "som_n": 8,
+    "epochs": 10
+  }
+]

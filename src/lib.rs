@@ -8,7 +8,10 @@ pub use error::SomError;
 pub use backend::Backend;
 pub use core::distance::DistanceFunction;
 pub use core::evals::bcubed_scores;
-pub use core::evals::{ClassEvalMethod, EvalMethod};
+pub use core::evals::{
+    calinski_harabasz_score, davies_bouldin_index, dunn_index, silhouette_score, ClassEvalMethod,
+    EvalMethod,
+};
 pub use core::kmeans::{KMeans, KMeansBuilder, KMeansInit};
 pub use core::model_picker::{ModelPicker, PickerConfig};
 pub use core::som::{InitMethod, Som, SomBuilder};

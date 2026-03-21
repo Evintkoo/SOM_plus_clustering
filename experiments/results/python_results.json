@@ -1,0 +1,117 @@
+{
+  "iris": {
+    "n_samples": 150,
+    "n_features": 4,
+    "n_classes": 3,
+    "som": {
+      "fit_time_s": 0.0207,
+      "predict_time_s": 0.0001,
+      "silhouette": 0.17847,
+      "davies_bouldin": 0.97614,
+      "calinski_harabasz": 91.9575,
+      "dunn": 0.084221,
+      "n_neurons": 25
+    },
+    "kmeans": {
+      "fit_time_s": 0.8821,
+      "predict_time_s": 0.0,
+      "silhouette": 0.463042,
+      "davies_bouldin": 0.467615,
+      "calinski_harabasz": 241.4263,
+      "dunn": 0.057119,
+      "inertia": 140.0328
+    }
+  },
+  "wine": {
+    "n_samples": 178,
+    "n_features": 13,
+    "n_classes": 3,
+    "som": {
+      "fit_time_s": 0.0177,
+      "predict_time_s": 0.0001,
+      "silhouette": 0.043166,
+      "davies_bouldin": 1.748469,
+      "calinski_harabasz": 16.4269,
+      "dunn": 0.17493,
+      "n_neurons": 25
+    },
+    "kmeans": {
+      "fit_time_s": 0.0001,
+      "predict_time_s": 0.0,
+      "silhouette": 0.285942,
+      "davies_bouldin": 0.785827,
+      "calinski_harabasz": 70.8369,
+      "dunn": 0.176897,
+      "inertia": 1278.7608
+    }
+  },
+  "breast_cancer": {
+    "n_samples": 569,
+    "n_features": 30,
+    "n_classes": 2,
+    "som": {
+      "fit_time_s": 0.0644,
+      "predict_time_s": 0.0012,
+      "silhouette": 0.02423,
+      "davies_bouldin": 1.967707,
+      "calinski_harabasz": 35.8195,
+      "dunn": 0.069371,
+      "n_neurons": 36
+    },
+    "kmeans": {
+      "fit_time_s": 0.0001,
+      "predict_time_s": 0.0,
+      "silhouette": 0.344734,
+      "davies_bouldin": 0.654644,
+      "calinski_harabasz": 267.6804,
+      "dunn": 0.060763,
+      "inertia": 11595.6833
+    }
+  },
+  "digits": {
+    "n_samples": 500,
+    "n_features": 64,
+    "n_classes": 10,
+    "som": {
+      "fit_time_s": 0.0841,
+      "predict_time_s": 0.0074,
+      "silhouette": 0.079404,
+      "davies_bouldin": 1.560582,
+      "calinski_harabasz": 14.5582,
+      "dunn": 0.099067,
+      "n_neurons": 64
+    },
+    "kmeans": {
+      "fit_time_s": 0.0018,
+      "predict_time_s": 0.0001,
+      "silhouette": 0.171096,
+      "davies_bouldin": 1.393476,
+      "calinski_harabasz": 41.8934,
+      "dunn": 0.090607,
+      "inertia": 15823.9398
+    }
+  },
+  "blobs": {
+    "n_samples": 1000,
+    "n_features": 10,
+    "n_classes": 5,
+    "som": {
+      "fit_time_s": 0.102,
+      "predict_time_s": 0.0009,
+      "silhouette": 0.112187,
+      "davies_bouldin": 1.498775,
+      "calinski_harabasz": 784.5701,
+      "dunn": 0.153309,
+      "n_neurons": 49
+    },
+    "kmeans": {
+      "fit_time_s": 0.0001,
+      "predict_time_s": 0.0,
+      "silhouette": 0.700803,
+      "davies_bouldin": 0.327973,
+      "calinski_harabasz": 3135.967,
+      "dunn": 0.670009,
+      "inertia": 734.9211
+    }
+  }
+}
