@@ -1,11 +1,22 @@
-use ndarray::{Array1, Array2, ArrayView1, ArrayView2, Axis};
 use crate::SomError;
+use ndarray::{Array1, Array2, ArrayView1, ArrayView2, Axis};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum EvalMethod { Silhouette, DaviesBouldin, CalinskiHarabasz, Dunn, All }
+pub enum EvalMethod {
+    Silhouette,
+    DaviesBouldin,
+    CalinskiHarabasz,
+    Dunn,
+    All,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum ClassEvalMethod { Accuracy, F1, Recall, All }
+pub enum ClassEvalMethod {
+    Accuracy,
+    F1,
+    Recall,
+    All,
+}
 
 fn pairwise_distances(data: &ArrayView2<f64>) -> Array2<f64> {
     use crate::core::distance::batch_euclidean;
@@ -35,7 +46,11 @@ pub fn silhouette_score(
         let sz = idx.len();
         if sz > 1 {
             for &i in &idx {
-                let sum: f64 = idx.iter().filter(|&&j| j != i).map(|&j| dists[[i, j]]).sum();
+                let sum: f64 = idx
+                    .iter()
+                    .filter(|&&j| j != i)
+                    .map(|&j| dists[[i, j]])
+                    .sum();
                 a[i] = sum / (sz - 1) as f64;
             }
         }
@@ -45,8 +60,8 @@ pub fn silhouette_score(
             }
             let other_idx: Vec<usize> = (0..n).filter(|&i| labels[i] == other).collect();
             for &i in &idx {
-                let mean: f64 = other_idx.iter().map(|&j| dists[[i, j]]).sum::<f64>()
-                    / other_idx.len() as f64;
+                let mean: f64 =
+                    other_idx.iter().map(|&j| dists[[i, j]]).sum::<f64>() / other_idx.len() as f64;
                 if mean < b[i] {
                     b[i] = mean;
                 }
@@ -59,7 +74,11 @@ pub fn silhouette_score(
                 return None;
             }
             let denom = a[i].max(b[i]);
-            if denom == 0.0 { None } else { Some((b[i] - a[i]) / denom) }
+            if denom == 0.0 {
+                None
+            } else {
+                Some((b[i] - a[i]) / denom)
+            }
         })
         .collect();
     if s_vals.is_empty() {
@@ -168,10 +187,7 @@ pub fn calinski_harabasz_score(
     Ok(((n - k) as f64 / (k - 1) as f64) * (between / within))
 }
 
-pub fn dunn_index(
-    data: &ArrayView2<f64>,
-    labels: &ArrayView1<usize>,
-) -> Result<f64, SomError> {
+pub fn dunn_index(data: &ArrayView2<f64>, labels: &ArrayView1<usize>) -> Result<f64, SomError> {
     let n = data.nrows();
     let unique: Vec<usize> = {
         let mut v = labels.to_vec();
@@ -212,10 +228,7 @@ pub fn dunn_index(
     Ok(min_inter / max_intra)
 }
 
-pub fn bcubed_scores(
-    clusters: &ArrayView1<usize>,
-    labels: &ArrayView1<usize>,
-) -> (f64, f64) {
+pub fn bcubed_scores(clusters: &ArrayView1<usize>, labels: &ArrayView1<usize>) -> (f64, f64) {
     let n = clusters.len();
     if n == 0 {
         return (0.0, 0.0);
@@ -224,7 +237,10 @@ pub fn bcubed_scores(
     for i in 0..n {
         let same_cluster: Vec<usize> = (0..n).filter(|&j| clusters[j] == clusters[i]).collect();
         let same_label: Vec<usize> = (0..n).filter(|&j| labels[j] == labels[i]).collect();
-        let both = same_cluster.iter().filter(|&&j| labels[j] == labels[i]).count();
+        let both = same_cluster
+            .iter()
+            .filter(|&&j| labels[j] == labels[i])
+            .count();
         prec += both as f64 / same_cluster.len() as f64;
         rec += both as f64 / same_label.len() as f64;
     }
@@ -236,7 +252,11 @@ pub fn accuracy(y_true: &ArrayView1<usize>, y_pred: &ArrayView1<usize>) -> f64 {
     if n == 0 {
         return 0.0;
     }
-    let correct = y_true.iter().zip(y_pred.iter()).filter(|(a, b)| a == b).count();
+    let correct = y_true
+        .iter()
+        .zip(y_pred.iter())
+        .filter(|(a, b)| a == b)
+        .count();
     correct as f64 / n as f64 * 100.0
 }
 
@@ -247,8 +267,11 @@ mod tests {
 
     fn perfect_clusters() -> (Array2<f64>, ndarray::Array1<usize>) {
         let data = Array2::from_shape_fn((20, 2), |(i, j)| {
-            if i < 10 { i as f64 * 0.01 + j as f64 * 0.01 }
-            else { 100.0 + i as f64 * 0.01 }
+            if i < 10 {
+                i as f64 * 0.01 + j as f64 * 0.01
+            } else {
+                100.0 + i as f64 * 0.01
+            }
         });
         let labels = ndarray::Array1::from_iter((0..20).map(|i| if i < 10 { 0 } else { 1 }));
         (data, labels)
@@ -265,7 +288,11 @@ mod tests {
     fn silhouette_high_for_separated() {
         let (d, l) = perfect_clusters();
         let s = silhouette_score(&d.view(), &l.view()).unwrap();
-        assert!(s > 0.5, "expected high silhouette for separated clusters, got {}", s);
+        assert!(
+            s > 0.5,
+            "expected high silhouette for separated clusters, got {}",
+            s
+        );
     }
 
     #[test]
@@ -299,8 +326,8 @@ mod tests {
 
     #[test]
     fn bcubed_perfect() {
-        let clusters = ndarray::Array1::from_vec(vec![0,0,0,1,1,1]);
-        let labels   = ndarray::Array1::from_vec(vec![0,0,0,1,1,1]);
+        let clusters = ndarray::Array1::from_vec(vec![0, 0, 0, 1, 1, 1]);
+        let labels = ndarray::Array1::from_vec(vec![0, 0, 0, 1, 1, 1]);
         let (p, r) = bcubed_scores(&clusters.view(), &labels.view());
         assert!((p - 1.0).abs() < 1e-6);
         assert!((r - 1.0).abs() < 1e-6);

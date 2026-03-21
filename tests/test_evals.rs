@@ -1,5 +1,5 @@
-use som_plus_clustering::{SomBuilder, EvalMethod, bcubed_scores};
 use ndarray::{Array1, Array2};
+use som_plus_clustering::{bcubed_scores, EvalMethod, SomBuilder};
 
 fn separated_data() -> (Array2<f64>, Array1<usize>) {
     let x = Array2::from_shape_fn((40, 2), |(i, j)| {

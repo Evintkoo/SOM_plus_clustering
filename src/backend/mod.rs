@@ -6,8 +6,8 @@ pub mod cuda;
 #[cfg(feature = "metal")]
 pub mod metal;
 
+use crate::{core::distance::DistanceFunction, SomError};
 use ndarray::Array2;
-use crate::{SomError, core::distance::DistanceFunction};
 
 /// Which compute backend to use for distance and update kernels.
 /// NOT serialized — always restores to Cpu on deserialization.

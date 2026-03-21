@@ -42,7 +42,9 @@ pub fn batch_euclidean(data: &ArrayView2<f64>, neurons: &ArrayView2<f64>) -> Arr
     let mut dist = cross;
     for i in 0..n {
         for j in 0..k {
-            dist[[i, j]] = (data_sq[i] + neuron_sq[j] - 2.0 * dist[[i, j]]).max(0.0).sqrt();
+            dist[[i, j]] = (data_sq[i] + neuron_sq[j] - 2.0 * dist[[i, j]])
+                .max(0.0)
+                .sqrt();
         }
     }
     dist
@@ -53,10 +55,12 @@ pub fn batch_cosine(data: &ArrayView2<f64>, neurons: &ArrayView2<f64>) -> Array2
     use ndarray::linalg::general_mat_mul;
     let n = data.nrows();
     let k = neurons.nrows();
-    let data_norms = data.mapv(|x| x * x)
+    let data_norms = data
+        .mapv(|x| x * x)
         .sum_axis(ndarray::Axis(1))
         .mapv(|x| x.sqrt().max(1e-12)); // (n,)
-    let neuron_norms = neurons.mapv(|x| x * x)
+    let neuron_norms = neurons
+        .mapv(|x| x * x)
         .sum_axis(ndarray::Axis(1))
         .mapv(|x| x.sqrt().max(1e-12)); // (k,)
     let mut dots = Array2::<f64>::zeros((n, k));

@@ -1,22 +1,23 @@
-use std::collections::HashMap;
-use ndarray::{Array1, Array2, ArrayView1, ArrayView2, Axis};
-use rand::seq::SliceRandom;
 use crate::{
-    SomError,
     backend::{self, Backend},
     core::{
         distance::DistanceFunction,
-        neighborhood,
-        init::{
-            init_random, init_he, init_lecun, init_zero,
-            init_naive_sharding, init_som_plus_plus, init_lsuv,
+        evals::{
+            calinski_harabasz_score, davies_bouldin_index, dunn_index, silhouette_score, EvalMethod,
         },
-        evals::{EvalMethod, silhouette_score, davies_bouldin_index,
-                calinski_harabasz_score, dunn_index},
-        kmeans::{KMeansBuilder, KMeansInit},
+        init::{
+            init_he, init_lecun, init_lsuv, init_naive_sharding, init_random, init_som_plus_plus,
+            init_zero,
+        },
         kde::initiate_kde,
+        kmeans::{KMeansBuilder, KMeansInit},
+        neighborhood,
     },
+    SomError,
 };
+use ndarray::{Array1, Array2, ArrayView1, ArrayView2, Axis};
+use rand::seq::SliceRandom;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum InitMethod {
@@ -42,6 +43,12 @@ pub struct SomBuilder {
     pub init_method: InitMethod,
     pub dist_func: DistanceFunction,
     pub max_iter: Option<usize>,
+}
+
+impl Default for SomBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SomBuilder {
@@ -121,7 +128,7 @@ pub struct Som {
     pub m: usize,
     pub n: usize,
     pub dim: usize,
-    neurons: Array2<f64>,   // shape [m*n, dim]
+    neurons: Array2<f64>, // shape [m*n, dim]
     initial_lr: f64,
     cur_lr: f64,
     initial_rad: f64,
@@ -145,7 +152,11 @@ impl Som {
             InitMethod::Random => {
                 let min = data.fold(f64::INFINITY, |a, &b| a.min(b));
                 let max = data.fold(f64::NEG_INFINITY, |a, &b| a.max(b));
-                let hi = if (max - min).abs() < 1e-12 { min + 1e-6 } else { max };
+                let hi = if (max - min).abs() < 1e-12 {
+                    min + 1e-6
+                } else {
+                    max
+                };
                 init_random(k, dim, min, hi)
             }
             InitMethod::He => init_he(dim, k),
@@ -210,7 +221,10 @@ impl Som {
             return Err(SomError::InvalidInputData);
         }
         if data.ncols() != self.dim {
-            return Err(SomError::DimensionMismatch { expected: self.dim, got: data.ncols() });
+            return Err(SomError::DimensionMismatch {
+                expected: self.dim,
+                got: data.ncols(),
+            });
         }
         // 2. Init neurons (first call only)
         if !self.trained {
@@ -228,7 +242,8 @@ impl Som {
             if shuffle {
                 let mut rows: Vec<usize> = (0..n).collect();
                 rows.shuffle(&mut rng);
-                let shuffled = Array2::from_shape_fn((n, self.dim), |(i, j)| data_owned[[rows[i], j]]);
+                let shuffled =
+                    Array2::from_shape_fn((n, self.dim), |(i, j)| data_owned[[rows[i], j]]);
                 data_owned = shuffled;
             }
             for batch_start in (0..n).step_by(bs) {
@@ -244,7 +259,12 @@ impl Som {
                     let bmu_r = bmu_idx / self.n;
                     let bmu_c = bmu_idx % self.n;
                     let influence = neighborhood::gaussian_grid(
-                        self.m, self.n, bmu_r, bmu_c, self.cur_lr, self.cur_rad,
+                        self.m,
+                        self.n,
+                        bmu_r,
+                        bmu_c,
+                        self.cur_lr,
+                        self.cur_rad,
                     );
                     // neurons is already [m*n, dim], pass directly (in-place update)
                     backend::neighborhood_update(
@@ -271,12 +291,8 @@ impl Som {
         }
         let neurons_owned = self.neurons.clone();
         let data_owned = data.to_owned();
-        let dists = backend::batch_distances(
-            &data_owned,
-            &neurons_owned,
-            self.dist_func,
-            self.backend,
-        )?;
+        let dists =
+            backend::batch_distances(&data_owned, &neurons_owned, self.dist_func, self.backend)?;
         let labels = dists.map_axis(Axis(1), |row| {
             row.iter()
                 .enumerate()
@@ -303,10 +319,16 @@ impl Som {
         let mut out = HashMap::new();
         let run_all = methods.contains(&EvalMethod::All);
         if run_all || methods.contains(&EvalMethod::Silhouette) {
-            out.insert(EvalMethod::Silhouette, silhouette_score(data, &labels.view())?);
+            out.insert(
+                EvalMethod::Silhouette,
+                silhouette_score(data, &labels.view())?,
+            );
         }
         if run_all || methods.contains(&EvalMethod::DaviesBouldin) {
-            out.insert(EvalMethod::DaviesBouldin, davies_bouldin_index(data, &labels.view())?);
+            out.insert(
+                EvalMethod::DaviesBouldin,
+                davies_bouldin_index(data, &labels.view())?,
+            );
         }
         if run_all || methods.contains(&EvalMethod::CalinskiHarabasz) {
             if let Ok(v) = calinski_harabasz_score(data, &labels.view()) {
@@ -353,17 +375,15 @@ impl Som {
     }
 
     pub fn load(path: &str) -> Result<Self, SomError> {
-        use crate::core::distance::DistanceFunction;
         use crate::backend::Backend;
+        use crate::core::distance::DistanceFunction;
         use ndarray::Array2;
         let state = crate::serialize::load_bincode(path)?;
-        let neurons = Array2::from_shape_vec(
-            (state.m * state.n, state.dim),
-            state.neurons,
-        ).map_err(|_| SomError::DimensionMismatch {
-            expected: state.m * state.n * state.dim,
-            got: 0,
-        })?;
+        let neurons = Array2::from_shape_vec((state.m * state.n, state.dim), state.neurons)
+            .map_err(|_| SomError::DimensionMismatch {
+                expected: state.m * state.n * state.dim,
+                got: 0,
+            })?;
         let dist_func = match state.dist_func {
             1 => DistanceFunction::Cosine,
             _ => DistanceFunction::Euclidean,
@@ -397,7 +417,11 @@ mod tests {
 
     #[test]
     fn builder_validates_learning_rate() {
-        assert!(SomBuilder::new().grid(3, 3).dim(3).learning_rate(2.0).is_err());
+        assert!(SomBuilder::new()
+            .grid(3, 3)
+            .dim(3)
+            .learning_rate(2.0)
+            .is_err());
     }
 
     #[test]

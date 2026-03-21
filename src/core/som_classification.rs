@@ -1,14 +1,20 @@
-use ndarray::{Array1, Array2, ArrayView1, ArrayView2};
-use crate::{
-    SomError,
-    core::evals::{accuracy, ClassEvalMethod},
-    core::som::{Som, SomBuilder, InitMethod},
-};
 use crate::backend::Backend;
+use crate::{
+    core::evals::{accuracy, ClassEvalMethod},
+    core::som::{InitMethod, Som, SomBuilder},
+    SomError,
+};
+use ndarray::{Array1, Array2, ArrayView1, ArrayView2};
 use std::collections::HashMap;
 
 /// Builder for SomClassification — wraps SomBuilder.
 pub struct SomClassificationBuilder(SomBuilder);
+
+impl Default for SomClassificationBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl SomClassificationBuilder {
     pub fn new() -> Self {
@@ -47,7 +53,7 @@ impl SomClassificationBuilder {
 /// After fit, each neuron is assigned the label of its nearest training point.
 pub struct SomClassification {
     som: Som,
-    neuron_label: Option<Array2<usize>>,  // shape [m, n]
+    neuron_label: Option<Array2<usize>>, // shape [m, n]
 }
 
 impl SomClassification {
@@ -73,8 +79,7 @@ impl SomClassification {
                 .min_by(|&a, &b| {
                     let da = (&x.row(a) - &centers.row(ci)).mapv(|v| v * v).sum();
                     let db = (&x.row(b) - &centers.row(ci)).mapv(|v| v * v).sum();
-                    da.partial_cmp(&db)
-                        .unwrap_or(std::cmp::Ordering::Equal)
+                    da.partial_cmp(&db).unwrap_or(std::cmp::Ordering::Equal)
                 })
                 .unwrap();
             labels[[ci / n, ci % n]] = y[best];

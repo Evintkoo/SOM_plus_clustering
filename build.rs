@@ -17,7 +17,11 @@ fn compile_cuda_kernels() {
     // Write stub PTX files when nvcc is absent so `cargo check --features cuda` still works
     if Command::new("nvcc").arg("--version").output().is_err() {
         println!("cargo:warning=nvcc not found — CUDA feature stubs only");
-        for name in &["euclidean_distances", "cosine_distances", "neighborhood_update"] {
+        for name in &[
+            "euclidean_distances",
+            "cosine_distances",
+            "neighborhood_update",
+        ] {
             let ptx_path = format!("{}/{}.ptx", out_dir, name);
             std::fs::write(&ptx_path, "// stub\n").unwrap();
         }
@@ -25,7 +29,11 @@ fn compile_cuda_kernels() {
     }
 
     let shaders_dir = "src/backend/shaders";
-    for name in &["euclidean_distances", "cosine_distances", "neighborhood_update"] {
+    for name in &[
+        "euclidean_distances",
+        "cosine_distances",
+        "neighborhood_update",
+    ] {
         let cu_path = format!("{}/{}.cu", shaders_dir, name);
         let ptx_path = format!("{}/{}.ptx", out_dir, name);
         let status = Command::new("nvcc")
@@ -70,10 +78,7 @@ fn compile_metal_shaders() {
     }
 
     let shaders_dir = "src/backend/shaders";
-    let msl_files = [
-        "euclidean_distances",
-        "neighborhood_update",
-    ];
+    let msl_files = ["euclidean_distances", "neighborhood_update"];
 
     // Compile each .metal to .air
     let mut air_files: Vec<String> = Vec::new();
@@ -86,7 +91,10 @@ fn compile_metal_shaders() {
         match status {
             Ok(s) if s.success() => {}
             Ok(s) => {
-                eprintln!("cargo:error=xcrun metal -c failed for {}.metal with status {}", name, s);
+                eprintln!(
+                    "cargo:error=xcrun metal -c failed for {}.metal with status {}",
+                    name, s
+                );
                 std::process::exit(1);
             }
             Err(e) => {
@@ -99,7 +107,11 @@ fn compile_metal_shaders() {
     }
 
     // Link all .air files into a single som_kernels.metallib
-    let mut metallib_args = vec!["-sdk".to_string(), "macosx".to_string(), "metallib".to_string()];
+    let mut metallib_args = vec![
+        "-sdk".to_string(),
+        "macosx".to_string(),
+        "metallib".to_string(),
+    ];
     metallib_args.extend(air_files);
     metallib_args.extend(["-o".to_string(), metallib_out]);
     let status = Command::new("xcrun").args(&metallib_args).status();

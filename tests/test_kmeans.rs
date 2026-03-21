@@ -1,5 +1,5 @@
-use som_plus_clustering::{KMeansBuilder, KMeansInit, SomError};
 use ndarray::Array2;
+use som_plus_clustering::{KMeansBuilder, KMeansInit, SomError};
 
 fn blobs() -> Array2<f64> {
     Array2::from_shape_fn((40, 2), |(i, j)| {
@@ -41,5 +41,8 @@ fn kmeans_already_fitted() {
         .method(KMeansInit::Random)
         .build();
     km.fit(&blobs().view()).unwrap();
-    assert!(matches!(km.fit(&blobs().view()), Err(SomError::AlreadyFitted)));
+    assert!(matches!(
+        km.fit(&blobs().view()),
+        Err(SomError::AlreadyFitted)
+    ));
 }

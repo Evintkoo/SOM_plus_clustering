@@ -1,33 +1,67 @@
-use crate::{SomError, core::som::{Som, SomBuilder, InitMethod}, core::evals::EvalMethod};
-use ndarray::ArrayView2;
 use crate::core::distance::DistanceFunction;
+use crate::{
+    core::evals::EvalMethod,
+    core::som::{InitMethod, Som, SomBuilder},
+    SomError,
+};
+use ndarray::ArrayView2;
+
+/// Configuration for `ModelPicker::evaluate_all_init_methods`.
+pub struct PickerConfig {
+    pub grid_m: usize,
+    pub grid_n: usize,
+    pub learning_rate: f64,
+    pub neighbor_rad: f64,
+    pub dist_fn: DistanceFunction,
+    pub max_iter: Option<usize>,
+    pub epoch: usize,
+}
 
 pub struct ModelPicker {
     models: Vec<Som>,
     scores: Vec<f64>,
 }
 
+impl Default for ModelPicker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModelPicker {
     pub fn new() -> Self {
-        Self { models: vec![], scores: vec![] }
+        Self {
+            models: vec![],
+            scores: vec![],
+        }
     }
 
     pub fn evaluate_all_init_methods(
         &mut self,
         data: &ArrayView2<f64>,
-        grid_m: usize,
-        grid_n: usize,
-        learning_rate: f64,
-        neighbor_rad: f64,
-        dist_fn: DistanceFunction,
-        max_iter: Option<usize>,
-        epoch: usize,
+        cfg: PickerConfig,
     ) -> Result<(), SomError> {
+        let PickerConfig {
+            grid_m,
+            grid_n,
+            learning_rate,
+            neighbor_rad,
+            dist_fn,
+            max_iter,
+            epoch,
+        } = cfg;
         let all_methods = [
-            InitMethod::Random, InitMethod::KMeans, InitMethod::KMeansPlusPlus,
-            InitMethod::KdekMeans, InitMethod::SomPlusPlus, InitMethod::Zero,
-            InitMethod::He, InitMethod::NaiveSharding, InitMethod::LeCun,
-            InitMethod::Lsuv, InitMethod::Kde,
+            InitMethod::Random,
+            InitMethod::KMeans,
+            InitMethod::KMeansPlusPlus,
+            InitMethod::KdekMeans,
+            InitMethod::SomPlusPlus,
+            InitMethod::Zero,
+            InitMethod::He,
+            InitMethod::NaiveSharding,
+            InitMethod::LeCun,
+            InitMethod::Lsuv,
+            InitMethod::Kde,
         ];
         for method in &all_methods {
             let mut b = SomBuilder::new()

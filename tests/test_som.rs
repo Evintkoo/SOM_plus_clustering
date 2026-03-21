@@ -1,5 +1,5 @@
-use som_plus_clustering::{SomBuilder, EvalMethod};
 use ndarray::Array2;
+use som_plus_clustering::{EvalMethod, SomBuilder};
 
 fn synthetic_data() -> Array2<f64> {
     Array2::from_shape_fn((100, 4), |(i, j)| ((i + j) as f64).sin() * 0.5 + 0.5)

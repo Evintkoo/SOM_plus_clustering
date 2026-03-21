@@ -19,7 +19,7 @@ pub struct SomState {
 
 pub fn save_bincode(state: &SomState, path: &str) -> Result<(), SomError> {
     let bytes = bincode::encode_to_vec(state, bincode::config::standard())
-        .map_err(|e| SomError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+        .map_err(|e| SomError::Io(std::io::Error::other(e.to_string())))?;
     std::fs::write(path, bytes)?;
     Ok(())
 }
@@ -27,7 +27,7 @@ pub fn save_bincode(state: &SomState, path: &str) -> Result<(), SomError> {
 pub fn load_bincode(path: &str) -> Result<SomState, SomError> {
     let bytes = std::fs::read(path)?;
     let (val, _) = bincode::decode_from_slice::<SomState, _>(&bytes, bincode::config::standard())
-        .map_err(|e| SomError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))?;
+        .map_err(|e| SomError::Io(std::io::Error::other(e.to_string())))?;
     Ok(val)
 }
 
@@ -37,7 +37,7 @@ pub fn save_json<T: serde::Serialize>(value: &T, path: &str) -> Result<(), SomEr
     use std::io::BufWriter;
     let f = File::create(path)?;
     serde_json::to_writer_pretty(BufWriter::new(f), value)
-        .map_err(|e| SomError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))
+        .map_err(|e| SomError::Io(std::io::Error::other(e.to_string())))
 }
 
 #[cfg(feature = "serde-json")]
@@ -46,5 +46,5 @@ pub fn load_json<T: serde::de::DeserializeOwned>(path: &str) -> Result<T, SomErr
     use std::io::BufReader;
     let f = File::open(path)?;
     serde_json::from_reader(BufReader::new(f))
-        .map_err(|e| SomError::Io(std::io::Error::new(std::io::ErrorKind::Other, e.to_string())))
+        .map_err(|e| SomError::Io(std::io::Error::other(e.to_string())))
 }

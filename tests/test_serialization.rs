@@ -1,5 +1,5 @@
-use som_plus_clustering::{Som, SomBuilder};
 use ndarray::Array2;
+use som_plus_clustering::{Som, SomBuilder};
 
 #[test]
 fn save_load_predict_identical() {

@@ -4,10 +4,10 @@
 // training time (BMU search). The neighborhood_update falls back to CPU for v0.1.
 // The GPU training path is not numerically identical to the CPU path.
 
-use ndarray::{Array2, ArrayView1, ArrayView2};
+use crate::{core::distance::DistanceFunction, SomError};
 use metal::{CommandQueue, ComputePipelineState, Device, MTLResourceOptions, MTLSize};
+use ndarray::{Array2, ArrayView1, ArrayView2};
 use once_cell::sync::Lazy;
-use crate::{SomError, core::distance::DistanceFunction};
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/som_kernels.metallib"));
 
@@ -25,24 +25,35 @@ unsafe impl Send for MetalState {}
 unsafe impl Sync for MetalState {}
 
 static METAL_STATE: Lazy<Result<MetalState, String>> = Lazy::new(|| {
-    let dev = Device::system_default()
-        .ok_or_else(|| "No Metal device found".to_string())?;
-    let lib = dev.new_library_with_data(METALLIB)
+    let dev = Device::system_default().ok_or_else(|| "No Metal device found".to_string())?;
+    let lib = dev
+        .new_library_with_data(METALLIB)
         .map_err(|e| e.to_string())?;
-    let fn_euclidean = lib.get_function("batch_euclidean", None)
+    let fn_euclidean = lib
+        .get_function("batch_euclidean", None)
         .map_err(|e| e.to_string())?;
-    let fn_cosine = lib.get_function("batch_cosine", None)
+    let fn_cosine = lib
+        .get_function("batch_cosine", None)
         .map_err(|e| e.to_string())?;
-    let pipeline_euclidean = dev.new_compute_pipeline_state_with_function(&fn_euclidean)
+    let pipeline_euclidean = dev
+        .new_compute_pipeline_state_with_function(&fn_euclidean)
         .map_err(|e| e.to_string())?;
-    let pipeline_cosine = dev.new_compute_pipeline_state_with_function(&fn_cosine)
+    let pipeline_cosine = dev
+        .new_compute_pipeline_state_with_function(&fn_cosine)
         .map_err(|e| e.to_string())?;
     let queue = dev.new_command_queue();
-    Ok(MetalState { device: dev, queue, pipeline_euclidean, pipeline_cosine })
+    Ok(MetalState {
+        device: dev,
+        queue,
+        pipeline_euclidean,
+        pipeline_cosine,
+    })
 });
 
 fn get_state() -> Result<&'static MetalState, SomError> {
-    METAL_STATE.as_ref().map_err(|e| SomError::BackendUnavailable(e.clone()))
+    METAL_STATE
+        .as_ref()
+        .map_err(|e| SomError::BackendUnavailable(e.clone()))
 }
 
 pub fn batch_distances(
@@ -74,10 +85,9 @@ pub fn batch_distances(
         neu_f32.len() as u64 * 4u64,
         MTLResourceOptions::StorageModeShared,
     );
-    let buf_out = state.device.new_buffer(
-        out_len as u64 * 4u64,
-        MTLResourceOptions::StorageModeShared,
-    );
+    let buf_out = state
+        .device
+        .new_buffer(out_len as u64 * 4u64, MTLResourceOptions::StorageModeShared);
     let n_i = n as i32;
     let k_i = k as i32;
     let dim_i = dim as i32;
@@ -107,7 +117,11 @@ pub fn batch_distances(
     enc.set_buffer(4, Some(&buf_k), 0);
     enc.set_buffer(5, Some(&buf_d), 0);
 
-    let thread_group_size = MTLSize { width: 16, height: 16, depth: 1 };
+    let thread_group_size = MTLSize {
+        width: 16,
+        height: 16,
+        depth: 1,
+    };
     let grid_size = MTLSize {
         width: (n as u64 + 15) / 16,
         height: (k as u64 + 15) / 16,

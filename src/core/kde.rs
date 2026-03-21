@@ -93,11 +93,11 @@ pub fn initiate_kde(
             })
             .unwrap();
         selected.push(next);
-        for j in 0..max_n {
+        for (j, slot) in min_dist.iter_mut().enumerate().take(max_n) {
             let d = &local_max.row(next) - &local_max.row(j);
             let dist = d.dot(&d);
-            if dist < min_dist[j] {
-                min_dist[j] = dist;
+            if dist < *slot {
+                *slot = dist;
             }
         }
     }
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn kde_values_positive() {
-        let data = Array2::from_shape_fn((20, 2), |(i,j)| i as f64 + j as f64 * 0.1);
+        let data = Array2::from_shape_fn((20, 2), |(i, j)| i as f64 + j as f64 * 0.1);
         let bw = bandwidth_estimator(&data.column(0));
         let vals = kde_multidimensional(&data.view(), &data.view(), bw);
         assert!(vals.iter().all(|&v| v >= 0.0));
@@ -131,10 +131,8 @@ mod tests {
 
     #[test]
     fn local_maxima_detected() {
-        let vals: Vec<f64> = (0..11).map(|i| {
-            if i == 5 { 1.0 } else { 0.1 }
-        }).collect();
-        let pts = Array2::from_shape_fn((11, 1), |(i,_)| i as f64);
+        let vals: Vec<f64> = (0..11).map(|i| if i == 5 { 1.0 } else { 0.1 }).collect();
+        let pts = Array2::from_shape_fn((11, 1), |(i, _)| i as f64);
         let maxima = find_local_maxima(&vals, &pts.view());
         assert_eq!(maxima.nrows(), 1);
     }

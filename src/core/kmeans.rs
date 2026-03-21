@@ -1,6 +1,6 @@
-use ndarray::{Array1, Array2, ArrayView2, Axis};
-use crate::SomError;
 use crate::core::init::{init_random, init_som_plus_plus};
+use crate::SomError;
+use ndarray::{Array1, Array2, ArrayView2, Axis};
 use std::cell::Cell;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -17,14 +17,37 @@ pub struct KMeansBuilder {
     tol: f64,
 }
 
+impl Default for KMeansBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KMeansBuilder {
     pub fn new() -> Self {
-        Self { n_clusters: 8, method: KMeansInit::PlusPlus, max_iters: 300, tol: 1e-6 }
+        Self {
+            n_clusters: 8,
+            method: KMeansInit::PlusPlus,
+            max_iters: 300,
+            tol: 1e-6,
+        }
     }
-    pub fn n_clusters(mut self, k: usize) -> Self { self.n_clusters = k; self }
-    pub fn method(mut self, m: KMeansInit) -> Self { self.method = m; self }
-    pub fn max_iters(mut self, n: usize) -> Self { self.max_iters = n; self }
-    pub fn tol(mut self, t: f64) -> Self { self.tol = t; self }
+    pub fn n_clusters(mut self, k: usize) -> Self {
+        self.n_clusters = k;
+        self
+    }
+    pub fn method(mut self, m: KMeansInit) -> Self {
+        self.method = m;
+        self
+    }
+    pub fn max_iters(mut self, n: usize) -> Self {
+        self.max_iters = n;
+        self
+    }
+    pub fn tol(mut self, t: f64) -> Self {
+        self.tol = t;
+        self
+    }
     pub fn build(self) -> KMeans {
         KMeans {
             n_clusters: self.n_clusters,
@@ -60,7 +83,10 @@ impl KMeans {
             return Err(SomError::InvalidInputData);
         }
         if self.n_clusters == 0 || self.n_clusters > n {
-            return Err(SomError::DimensionMismatch { expected: n, got: self.n_clusters });
+            return Err(SomError::DimensionMismatch {
+                expected: n,
+                got: self.n_clusters,
+            });
         }
         let min = data.fold(f64::INFINITY, |a, &b| a.min(b));
         let max = data.fold(f64::NEG_INFINITY, |a, &b| a.max(b));
@@ -68,7 +94,11 @@ impl KMeans {
         let mut cents = match self.method {
             KMeansInit::Random => {
                 let lo = min;
-                let hi = if (max - min).abs() < 1e-12 { min + 1e-6 } else { max };
+                let hi = if (max - min).abs() < 1e-12 {
+                    min + 1e-6
+                } else {
+                    max
+                };
                 init_random(self.n_clusters, dim, lo, hi)
             }
             KMeansInit::PlusPlus => init_som_plus_plus(data, self.n_clusters),
@@ -90,7 +120,8 @@ impl KMeans {
             }
         }
         let final_labels = self.assign(data, &cents.view());
-        self.inertia.set(self.compute_inertia(data, &final_labels, &cents.view()));
+        self.inertia
+            .set(self.compute_inertia(data, &final_labels, &cents.view()));
         self.n_iter.set(iter);
         self.centroids = Some(cents);
         Ok(())
@@ -108,7 +139,12 @@ impl KMeans {
         })
     }
 
-    fn update(&self, data: &ArrayView2<f64>, labels: &Array1<usize>, old_cents: &ArrayView2<f64>) -> Array2<f64> {
+    fn update(
+        &self,
+        data: &ArrayView2<f64>,
+        labels: &Array1<usize>,
+        old_cents: &ArrayView2<f64>,
+    ) -> Array2<f64> {
         let mut new = old_cents.to_owned();
         let mut counts = vec![0usize; self.n_clusters];
         for (i, &c) in labels.iter().enumerate() {
@@ -140,7 +176,10 @@ impl KMeans {
     }
 
     pub fn predict(&self, data: &ArrayView2<f64>) -> Result<Array1<usize>, SomError> {
-        let cents = self.centroids.as_ref().ok_or(SomError::NotFitted("predict"))?;
+        let cents = self
+            .centroids
+            .as_ref()
+            .ok_or(SomError::NotFitted("predict"))?;
         Ok(self.assign(data, &cents.view()))
     }
 
@@ -153,7 +192,9 @@ impl KMeans {
     }
 
     pub fn inertia(&self) -> Result<f64, SomError> {
-        self.centroids.as_ref().ok_or(SomError::NotFitted("inertia"))?;
+        self.centroids
+            .as_ref()
+            .ok_or(SomError::NotFitted("inertia"))?;
         Ok(self.inertia.get())
     }
 
@@ -169,21 +210,33 @@ mod tests {
 
     fn blobs() -> Array2<f64> {
         let mut d = Array2::<f64>::zeros((20, 2));
-        for i in 0..10 { d[[i,0]] = i as f64 * 0.01; d[[i,1]] = i as f64 * 0.01; }
-        for i in 10..20 { d[[i,0]] = 10.0 + i as f64 * 0.01; d[[i,1]] = 10.0; }
+        for i in 0..10 {
+            d[[i, 0]] = i as f64 * 0.01;
+            d[[i, 1]] = i as f64 * 0.01;
+        }
+        for i in 10..20 {
+            d[[i, 0]] = 10.0 + i as f64 * 0.01;
+            d[[i, 1]] = 10.0;
+        }
         d
     }
 
     #[test]
     fn centroids_shape() {
-        let mut km = KMeansBuilder::new().n_clusters(2).method(KMeansInit::Random).build();
+        let mut km = KMeansBuilder::new()
+            .n_clusters(2)
+            .method(KMeansInit::Random)
+            .build();
         km.fit(&blobs().view()).unwrap();
         assert_eq!(km.centroids().shape(), &[2, 2]);
     }
 
     #[test]
     fn labels_in_range() {
-        let mut km = KMeansBuilder::new().n_clusters(2).method(KMeansInit::PlusPlus).build();
+        let mut km = KMeansBuilder::new()
+            .n_clusters(2)
+            .method(KMeansInit::PlusPlus)
+            .build();
         km.fit(&blobs().view()).unwrap();
         let labels = km.predict(&blobs().view()).unwrap();
         assert!(labels.iter().all(|&l| l < 2));
@@ -191,14 +244,26 @@ mod tests {
 
     #[test]
     fn already_fitted_error() {
-        let mut km = KMeansBuilder::new().n_clusters(2).method(KMeansInit::Random).build();
+        let mut km = KMeansBuilder::new()
+            .n_clusters(2)
+            .method(KMeansInit::Random)
+            .build();
         km.fit(&blobs().view()).unwrap();
-        assert!(matches!(km.fit(&blobs().view()), Err(crate::SomError::AlreadyFitted)));
+        assert!(matches!(
+            km.fit(&blobs().view()),
+            Err(crate::SomError::AlreadyFitted)
+        ));
     }
 
     #[test]
     fn inertia_not_fitted_error() {
-        let km = KMeansBuilder::new().n_clusters(2).method(KMeansInit::Random).build();
-        assert!(matches!(km.inertia(), Err(crate::SomError::NotFitted("inertia"))));
+        let km = KMeansBuilder::new()
+            .n_clusters(2)
+            .method(KMeansInit::Random)
+            .build();
+        assert!(matches!(
+            km.inertia(),
+            Err(crate::SomError::NotFitted("inertia"))
+        ));
     }
 }

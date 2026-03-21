@@ -1,6 +1,6 @@
+use crate::core::distance::{batch_cosine, batch_euclidean, DistanceFunction};
 use ndarray::{Array2, ArrayView1, ArrayView2, Axis};
 use rayon::prelude::*;
-use crate::core::distance::{batch_euclidean, batch_cosine, DistanceFunction};
 
 /// Returns a distance matrix of shape [n_samples, n_neurons].
 pub fn batch_distances(

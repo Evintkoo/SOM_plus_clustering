@@ -9,9 +9,12 @@ pub fn gaussian(dist_sq: f64, learning_rate: f64, radius: f64) -> f64 {
 
 /// Compute full m×n influence grid for BMU at (bmu_row, bmu_col).
 pub fn gaussian_grid(
-    m: usize, n: usize,
-    bmu_row: usize, bmu_col: usize,
-    learning_rate: f64, radius: f64,
+    m: usize,
+    n: usize,
+    bmu_row: usize,
+    bmu_col: usize,
+    learning_rate: f64,
+    radius: f64,
 ) -> Array2<f64> {
     debug_assert!(bmu_row < m, "bmu_row {} out of bounds for m={}", bmu_row, m);
     debug_assert!(bmu_col < n, "bmu_col {} out of bounds for n={}", bmu_col, n);
@@ -55,8 +58,10 @@ mod tests {
 
     #[test]
     fn grid_bmu_is_max() {
-        let m = 5; let n = 5;
-        let bmu_r = 2; let bmu_c = 2;
+        let m = 5;
+        let n = 5;
+        let bmu_r = 2;
+        let bmu_c = 2;
         let grid = gaussian_grid(m, n, bmu_r, bmu_c, 0.5, 1.0);
         let max_val = grid[[bmu_r, bmu_c]];
         assert!(grid.iter().all(|&v| v <= max_val + 1e-12));

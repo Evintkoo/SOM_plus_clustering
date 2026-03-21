@@ -3,11 +3,14 @@ name = "som_plus_clustering"
 version = "0.1.0"
 edition = "2021"
 authors = ["Evint Leovonzko"]
-description = "Industrial-grade Self-Organizing Map and clustering library"
+description = "Industrial-grade Self-Organizing Map and clustering — pure Rust, CPU/CUDA/Metal"
+documentation = "https://docs.rs/som_plus_clustering"
+readme = "README.md"
 license = "MIT"
 repository = "https://github.com/Evintkoo/SOM_plus_clustering"
-keywords = ["som", "clustering", "machine-learning", "unsupervised"]
+keywords = ["machine-learning", "clustering", "som", "self-organizing-map", "kmeans"]
 categories = ["science", "algorithms"]
+exclude = ["modules/", "tests/conftest.py", "*.pkl", "data.csv", "*.ipynb"]
 
 [features]
 default    = []
