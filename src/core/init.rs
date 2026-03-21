@@ -3,12 +3,14 @@ use ndarray_rand::rand_distr::{Normal, Distribution};
 use rand::Rng;
 
 pub fn init_random(k: usize, dim: usize, min: f64, max: f64) -> Array2<f64> {
+    assert!(min < max, "init_random: min ({}) must be less than max ({})", min, max);
     let mut rng = rand::rng();
     Array2::from_shape_fn((k, dim), |_| {
         rng.random_range(min..max)
     })
 }
 
+/// He initialization. Returns shape `(k, dim)`: k neurons × dim features.
 pub fn init_he(dim: usize, k: usize) -> Array2<f64> {
     let std = (2.0_f64 / dim as f64).sqrt();
     let dist = Normal::new(0.0, std).unwrap();
@@ -18,6 +20,8 @@ pub fn init_he(dim: usize, k: usize) -> Array2<f64> {
     })
 }
 
+/// LeCun initialization. Returns shape `(dim, k)`: dim features × k outputs.
+/// Note: transposed relative to `init_he` by design.
 pub fn init_lecun(dim: usize, k: usize) -> Array2<f64> {
     let std = (1.0_f64 / dim as f64).sqrt();
     let dist = Normal::new(0.0, std).unwrap();
@@ -27,6 +31,9 @@ pub fn init_lecun(dim: usize, k: usize) -> Array2<f64> {
     })
 }
 
+/// ZerO-style initialization: returns an identity matrix for square shapes,
+/// or a partial identity (diagonal ones, zero elsewhere) for rectangular shapes.
+/// Despite the name, this does NOT return an all-zeros matrix.
 pub fn init_zero(p: usize, q: usize) -> Array2<f64> {
     if p == q {
         return ndarray::Array2::eye(p);
@@ -66,6 +73,8 @@ pub fn init_naive_sharding(data: &ArrayView2<f64>, k: usize) -> Array2<f64> {
 
 pub fn init_som_plus_plus(data: &ArrayView2<f64>, k: usize) -> Array2<f64> {
     let n = data.nrows();
+    assert!(n > 0, "init_som_plus_plus: data must have at least 1 row");
+    assert!(k <= n, "init_som_plus_plus: k ({}) must not exceed number of data points ({})", k, n);
     let dim = data.ncols();
     let mean = data.mean_axis(ndarray::Axis(0)).unwrap();
     let first = (0..n)
@@ -111,6 +120,9 @@ pub fn init_lsuv(input_dim: usize, output_dim: usize, x_batch: &ArrayView2<f64>)
     let mut weights = Array2::from_shape_fn((input_dim, output_dim), |_| {
         dist.sample(&mut rng)
     });
+    if x_batch.nrows() == 0 {
+        return weights;
+    }
     for _ in 0..10 {
         let acts = x_batch.dot(&weights);
         let var = acts.var(0.0);
