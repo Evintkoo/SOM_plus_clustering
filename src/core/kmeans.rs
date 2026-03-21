@@ -145,7 +145,7 @@ impl KMeans {
         labels: &Array1<usize>,
         old_cents: &ArrayView2<f64>,
     ) -> Array2<f64> {
-        let mut new = old_cents.to_owned();
+        let mut new = Array2::zeros(old_cents.dim());
         let mut counts = vec![0usize; self.n_clusters];
         for (i, &c) in labels.iter().enumerate() {
             new.row_mut(c).scaled_add(1.0, &data.row(i));
@@ -154,6 +154,9 @@ impl KMeans {
         for (ci, &cnt) in counts.iter().enumerate() {
             if cnt > 0 {
                 new.row_mut(ci).mapv_inplace(|x| x / cnt as f64);
+            } else {
+                // retain old centroid for empty cluster
+                new.row_mut(ci).assign(&old_cents.row(ci));
             }
         }
         new
