@@ -23,9 +23,9 @@ pub fn euclidean_sq(a: &ArrayView1<f64>, b: &ArrayView1<f64>) -> f64 {
 /// Cosine distance (1 - cosine_similarity) between two 1-D vectors.
 pub fn cosine(a: &ArrayView1<f64>, b: &ArrayView1<f64>) -> f64 {
     let dot = a.dot(b);
-    let norm_a = a.dot(a).sqrt() + 1e-12;
-    let norm_b = b.dot(b).sqrt() + 1e-12;
-    1.0 - dot / (norm_a * norm_b)
+    let norm_a = a.dot(a).sqrt().max(1e-12);
+    let norm_b = b.dot(b).sqrt().max(1e-12);
+    (1.0 - dot / (norm_a * norm_b)).clamp(0.0, 2.0)
 }
 
 /// Batch Euclidean distance matrix: shape [n_samples, n_neurons].
@@ -38,12 +38,11 @@ pub fn batch_euclidean(data: &ArrayView2<f64>, neurons: &ArrayView2<f64>) -> Arr
     let neuron_sq = neurons.mapv(|x| x * x).sum_axis(ndarray::Axis(1)); // (k,)
     let mut cross = Array2::<f64>::zeros((n, k));
     general_mat_mul(1.0, data, &neurons.t(), 0.0, &mut cross);
-    // d²[i,j] = data_sq[i] + neuron_sq[j] - 2*cross[i,j]
+    // d[i,j] = sqrt(||a||² + ||b||² - 2·a·bᵀ)
     let mut dist = cross;
     for i in 0..n {
         for j in 0..k {
-            dist[[i, j]] = data_sq[i] + neuron_sq[j] - 2.0 * dist[[i, j]];
-            if dist[[i, j]] < 0.0 { dist[[i, j]] = 0.0; } // numerical safety
+            dist[[i, j]] = (data_sq[i] + neuron_sq[j] - 2.0 * dist[[i, j]]).max(0.0).sqrt();
         }
     }
     dist
@@ -56,15 +55,15 @@ pub fn batch_cosine(data: &ArrayView2<f64>, neurons: &ArrayView2<f64>) -> Array2
     let k = neurons.nrows();
     let data_norms = data.mapv(|x| x * x)
         .sum_axis(ndarray::Axis(1))
-        .mapv(|x| x.sqrt() + 1e-12); // (n,)
+        .mapv(|x| x.sqrt().max(1e-12)); // (n,)
     let neuron_norms = neurons.mapv(|x| x * x)
         .sum_axis(ndarray::Axis(1))
-        .mapv(|x| x.sqrt() + 1e-12); // (k,)
+        .mapv(|x| x.sqrt().max(1e-12)); // (k,)
     let mut dots = Array2::<f64>::zeros((n, k));
     general_mat_mul(1.0, data, &neurons.t(), 0.0, &mut dots);
     for i in 0..n {
         for j in 0..k {
-            dots[[i, j]] = 1.0 - dots[[i, j]] / (data_norms[i] * neuron_norms[j]);
+            dots[[i, j]] = (1.0 - dots[[i, j]] / (data_norms[i] * neuron_norms[j])).clamp(0.0, 2.0);
         }
     }
     dots
@@ -107,5 +106,16 @@ mod tests {
         let neurons = Array2::<f64>::zeros((10, 3));
         let d = batch_euclidean(&data.view(), &neurons.view());
         assert_eq!(d.shape(), &[5, 10]);
+    }
+
+    #[test]
+    fn batch_euclidean_values_match_scalar() {
+        let data = array![[0.0_f64, 0.0], [1.0_f64, 0.0]];
+        let neurons = array![[3.0_f64, 4.0]];
+        let d = batch_euclidean(&data.view(), &neurons.view());
+        // data[0] -> neuron[0]: euclidean([0,0],[3,4]) = 5.0
+        assert!((d[[0, 0]] - 5.0).abs() < 1e-10);
+        // data[1] -> neuron[0]: euclidean([1,0],[3,4]) = sqrt(4+16) = sqrt(20)
+        assert!((d[[1, 0]] - 20.0_f64.sqrt()).abs() < 1e-10);
     }
 }
