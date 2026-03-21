@@ -9,7 +9,8 @@ pub fn bandwidth_estimator(data: &ArrayView1<f64>) -> f64 {
     }
     let max = data.fold(f64::NEG_INFINITY, |a, &b| a.max(b));
     let min = data.fold(f64::INFINITY, |a, &b| a.min(b));
-    (max - min) / (1.0 + (n as f64).log2())
+    let bw = (max - min) / (1.0 + (n as f64).log2());
+    bw.max(1e-10)
 }
 
 fn gaussian_kernel(x: &ArrayView1<f64>, xi: &ArrayView1<f64>, bandwidth: f64) -> f64 {
@@ -64,36 +65,39 @@ pub fn initiate_kde(
 ) -> Result<Array2<f64>, crate::SomError> {
     let bw = bandwidth.unwrap_or_else(|| bandwidth_estimator(&data.column(0)));
     let kde_vals = kde_multidimensional(data, data, bw);
-    let local_max = find_local_maxima(kde_vals.as_slice().unwrap(), data);
+    let kde_vec: Vec<f64> = kde_vals.iter().copied().collect();
+    let local_max = find_local_maxima(&kde_vec, data);
     let max_n = local_max.nrows();
-    if max_n <= n_neurons {
+    if max_n < n_neurons {
         return Err(crate::SomError::KdeInsufficientMaxima {
             found: max_n,
             needed: n_neurons,
         });
     }
-    // Farthest-first selection among local maxima
+    // Farthest-first selection among local maxima (O(max_n × n_neurons))
     let mut selected = vec![0usize];
-    let dist_matrix: Vec<Vec<f64>> = (0..max_n)
-        .map(|i| {
-            (0..max_n)
-                .map(|j| {
-                    let d = &local_max.row(i) - &local_max.row(j);
-                    d.dot(&d)
-                })
-                .collect()
+    let mut min_dist: Vec<f64> = (0..max_n)
+        .map(|j| {
+            let d = &local_max.row(0) - &local_max.row(j);
+            d.dot(&d)
         })
         .collect();
-    let mut min_dist: Vec<f64> = dist_matrix[0].clone();
+
     for _ in 1..n_neurons {
         let next = (0..max_n)
             .filter(|i| !selected.contains(i))
-            .max_by(|&a, &b| min_dist[a].partial_cmp(&min_dist[b]).unwrap())
+            .max_by(|&a, &b| {
+                min_dist[a]
+                    .partial_cmp(&min_dist[b])
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .unwrap();
         selected.push(next);
-        for i in 0..max_n {
-            if dist_matrix[next][i] < min_dist[i] {
-                min_dist[i] = dist_matrix[next][i];
+        for j in 0..max_n {
+            let d = &local_max.row(next) - &local_max.row(j);
+            let dist = d.dot(&d);
+            if dist < min_dist[j] {
+                min_dist[j] = dist;
             }
         }
     }
