@@ -9,6 +9,7 @@ pub enum KMeansInit {
     PlusPlus,
 }
 
+#[derive(Debug)]
 pub struct KMeansBuilder {
     n_clusters: usize,
     method: KMeansInit,
@@ -37,6 +38,7 @@ impl KMeansBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct KMeans {
     n_clusters: usize,
     method: KMeansInit,
@@ -52,12 +54,23 @@ impl KMeans {
         if self.centroids.is_some() {
             return Err(SomError::AlreadyFitted);
         }
+        let n = data.nrows();
         let dim = data.ncols();
+        if n == 0 {
+            return Err(SomError::InvalidInputData);
+        }
+        if self.n_clusters == 0 || self.n_clusters > n {
+            return Err(SomError::DimensionMismatch { expected: n, got: self.n_clusters });
+        }
         let min = data.fold(f64::INFINITY, |a, &b| a.min(b));
         let max = data.fold(f64::NEG_INFINITY, |a, &b| a.max(b));
 
         let mut cents = match self.method {
-            KMeansInit::Random => init_random(self.n_clusters, dim, min, max),
+            KMeansInit::Random => {
+                let lo = min;
+                let hi = if (max - min).abs() < 1e-12 { min + 1e-6 } else { max };
+                init_random(self.n_clusters, dim, lo, hi)
+            }
             KMeansInit::PlusPlus => init_som_plus_plus(data, self.n_clusters),
         };
 
@@ -66,14 +79,15 @@ impl KMeans {
         for _ in 0..self.max_iters {
             iter += 1;
             let labels = self.assign(data, &cents.view());
-            let new_cents = self.update(data, &labels, dim);
+            let new_cents = self.update(data, &labels, &cents.view());
             let shift = (&new_cents - &cents).mapv(|x| x * x).sum().sqrt();
             cents = new_cents;
             let inert = self.compute_inertia(data, &labels, &cents.view());
-            if shift < self.tol || (prev_inertia - inert).abs() < self.tol {
+            let converged = shift < self.tol || (prev_inertia - inert).abs() < self.tol;
+            prev_inertia = inert;
+            if converged {
                 break;
             }
-            prev_inertia = inert;
         }
         let final_labels = self.assign(data, &cents.view());
         self.inertia.set(self.compute_inertia(data, &final_labels, &cents.view()));
@@ -94,8 +108,8 @@ impl KMeans {
         })
     }
 
-    fn update(&self, data: &ArrayView2<f64>, labels: &Array1<usize>, dim: usize) -> Array2<f64> {
-        let mut new = Array2::<f64>::zeros((self.n_clusters, dim));
+    fn update(&self, data: &ArrayView2<f64>, labels: &Array1<usize>, old_cents: &ArrayView2<f64>) -> Array2<f64> {
+        let mut new = old_cents.to_owned();
         let mut counts = vec![0usize; self.n_clusters];
         for (i, &c) in labels.iter().enumerate() {
             new.row_mut(c).scaled_add(1.0, &data.row(i));
@@ -130,6 +144,10 @@ impl KMeans {
         Ok(self.assign(data, &cents.view()))
     }
 
+    /// Returns the fitted centroids.
+    ///
+    /// # Panics
+    /// Panics if called before `fit`. Use `predict` (which returns `Result`) to check if fitted.
     pub fn centroids(&self) -> &Array2<f64> {
         self.centroids.as_ref().unwrap()
     }
