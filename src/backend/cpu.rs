@@ -23,22 +23,31 @@ pub fn neighborhood_update(
     dist_fn: DistanceFunction,
 ) {
     let flat_h: Vec<f64> = influence.iter().cloned().collect();
+    assert_eq!(
+        flat_h.len(),
+        neurons.nrows(),
+        "influence grid size ({}) must equal neuron count ({})",
+        flat_h.len(),
+        neurons.nrows()
+    );
+
+    // Precompute normalized data point for cosine (avoid recomputing per neuron)
+    let xn = data_point.dot(data_point).sqrt().max(1e-12);
+    let norm_x = data_point / xn;
+
     neurons
         .axis_iter_mut(Axis(0))
         .into_par_iter()
         .zip(flat_h.par_iter())
         .for_each(|(mut neuron, &h)| match dist_fn {
             DistanceFunction::Euclidean => {
-                let diff = data_point - &neuron;
-                neuron.scaled_add(h, &diff);
+                neuron.zip_mut_with(data_point, |w, &x| *w += h * (x - *w));
             }
             DistanceFunction::Cosine => {
                 let nn = neuron.dot(&neuron).sqrt().max(1e-12);
-                let xn = data_point.dot(data_point).sqrt().max(1e-12);
                 let norm_n = &neuron / nn;
-                let norm_x = data_point / xn;
                 let dot = norm_n.dot(&norm_x);
-                let dir = &norm_n * dot - &norm_n;
+                let dir = &norm_x - &norm_n * dot;
                 neuron.scaled_add(h * nn, &dir);
             }
         });
