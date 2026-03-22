@@ -21,6 +21,8 @@ pub struct DenSomResult {
 
 pub struct DenSomBuilder {
     som_builder:  SomBuilder,
+    m:            usize,
+    n:            usize,
     smooth_sigma: f64,
 }
 
@@ -136,7 +138,92 @@ fn connected_components(core_mask: &[bool], m: usize, n: usize) -> Array1<i32> {
     labels
 }
 
+impl Default for DenSomBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl DenSomBuilder {
+    pub fn new() -> Self {
+        Self {
+            som_builder: SomBuilder::new(),
+            m: 10,
+            n: 10,
+            smooth_sigma: 1.0,
+        }
+    }
+
+    pub fn grid(mut self, m: usize, n: usize) -> Self {
+        self.som_builder = self.som_builder.grid(m, n);
+        self.m = m;
+        self.n = n;
+        self
+    }
+
+    pub fn dim(mut self, d: usize) -> Self {
+        self.som_builder = self.som_builder.dim(d);
+        self
+    }
+
+    /// Returns `Err` if `lr > 1.76`, matching `SomBuilder` validation.
+    pub fn learning_rate(mut self, lr: f64) -> Result<Self, SomError> {
+        self.som_builder = self.som_builder.learning_rate(lr)?;
+        Ok(self)
+    }
+
+    pub fn neighbor_radius(mut self, r: f64) -> Self {
+        self.som_builder = self.som_builder.neighbor_radius(r);
+        self
+    }
+
+    pub fn init_method(mut self, m: InitMethod) -> Self {
+        self.som_builder = self.som_builder.init_method(m);
+        self
+    }
+
+    pub fn distance(mut self, d: DistanceFunction) -> Self {
+        self.som_builder = self.som_builder.distance(d);
+        self
+    }
+
+    /// Gaussian smoothing sigma on the neuron grid. Default `1.0`. Clamped to `>= 1e-6`.
+    pub fn smooth_sigma(mut self, s: f64) -> Self {
+        self.smooth_sigma = s.max(1e-6);
+        self
+    }
+
+    /// Infallible — all validation happens in individual setter methods.
+    pub fn build(self) -> DenSom {
+        let mn = self.m * self.n;
+        DenSom {
+            som:            self.som_builder.build(),
+            smooth_sigma:   self.smooth_sigma,
+            bmu_hits:       Array1::zeros(mn),
+            smooth_density: Array1::zeros(mn),
+            cluster_map:    Array1::from_elem(mn, -1i32),
+            n_clusters:     0,
+            fitted:         false,
+        }
+    }
+}
+
 impl DenSom {
+    /// Wrap an already-trained `Som`. Sets `fitted = true` immediately.
+    /// Call `refit_density` to build the density map from training data.
+    pub fn from_som(som: Som) -> Self {
+        let mn = som.m * som.n;
+        DenSom {
+            som,
+            smooth_sigma:   1.0,
+            bmu_hits:       Array1::zeros(mn),
+            smooth_density: Array1::zeros(mn),
+            cluster_map:    Array1::from_elem(mn, -1i32),
+            n_clusters:     0,
+            fitted:         true,
+        }
+    }
+
     fn finalize(&mut self) {
         let m = self.som.m;
         let n = self.som.n;
@@ -183,6 +270,29 @@ impl DenSom {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn from_som_is_fitted() {
+        use crate::core::som::SomBuilder;
+        // from_som should set fitted=true immediately
+        let som = SomBuilder::new().grid(3, 3).dim(2).build();
+        let densom = DenSom::from_som(som);
+        assert!(densom.fitted, "from_som must set fitted=true");
+        assert_eq!(densom.n_clusters, 0, "no finalize called yet — n_clusters=0");
+    }
+
+    #[test]
+    fn builder_defaults() {
+        let densom = DenSomBuilder::new().grid(4, 4).dim(2).build();
+        assert!(!densom.fitted, "new standalone DenSom starts unfitted");
+        assert_eq!(densom.smooth_sigma, 1.0);
+    }
+
+    #[test]
+    fn builder_smooth_sigma_clamped() {
+        let densom = DenSomBuilder::new().grid(2, 2).dim(2).smooth_sigma(0.0).build();
+        assert!(densom.smooth_sigma >= 1e-6, "sigma must be clamped to at least 1e-6");
+    }
 
     #[test]
     fn otsu_two_class() {
