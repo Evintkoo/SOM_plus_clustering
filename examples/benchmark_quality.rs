@@ -146,9 +146,10 @@ fn run_kmeans(data: &Array2<f64>, k: usize) -> (Vec<usize>, String) {
 }
 
 fn main() {
-    let base_dir   = "experiments/benchmark/datasets";
-    let results_dir = "experiments/benchmark/results";
-    let cfg_path   = "experiments/benchmark/dataset_config.json";
+    let args: Vec<String> = std::env::args().collect();
+    let base_dir    = args.get(1).map(String::as_str).unwrap_or("experiments/benchmark/datasets");
+    let cfg_path    = args.get(2).map(String::as_str).unwrap_or("experiments/benchmark/dataset_config.json");
+    let results_dir = args.get(3).map(String::as_str).unwrap_or("experiments/benchmark/results");
 
     fs::create_dir_all(results_dir).unwrap();
 
