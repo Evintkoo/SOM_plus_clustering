@@ -2,17 +2,12 @@ use crate::{
     core::{
         densom::DenSomBuilder,
         distance::DistanceFunction,
-        evals::{dbcv_score, silhouette_score},
         kmeans::{KMeansBuilder, KMeansInit},
         som::InitMethod,
     },
     SomError,
 };
-use ndarray::{Array1, Array2, ArrayView2};
-
-/// Points above this count skip the O(n²) DBCV path and use
-/// the faster noise-ratio threshold rule instead.
-const DBCV_LIMIT: usize = 5_000;
+use ndarray::{Array1, ArrayView2};
 
 /// Which algorithm was selected by the automatic pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -129,15 +124,14 @@ impl AutoSomBuilder {
 ///
 /// # Pipeline
 ///
-/// 1. Train DenSOM → get `k_detected` (density peak count) and `noise_ratio`.
+/// 1. Train DenSOM → get `k_detected` (number of density peaks).
 /// 2. Train KMeans with `k = max(2, k_detected)`.
-/// 3. Score both using **metric consensus** (DBCV + silhouette):
-///    - DenSOM noise points are reassigned to nearest cluster centroid
-///      so both methods are compared on full data with 100% assignment.
-///    - DBCV captures density-based quality; silhouette captures compactness.
-///    - DenSOM is chosen ONLY when **both** metrics prefer it, avoiding
-///      false positives from either metric's biases.
-/// 4. Return whichever scored higher, along with which algorithm was chosen.
+/// 3. Return KMeans labels with the auto-detected k.
+///
+/// DenSOM's role is **automatic k detection** — finding the number of
+/// clusters from the density landscape without user input.  KMeans then
+/// performs the actual clustering with that k, which consistently produces
+/// better partitions across globular, non-convex, and high-dimensional data.
 pub struct AutoSom {
     cfg: AutoSomBuilder,
 }
@@ -182,111 +176,16 @@ impl AutoSom {
         let km_labels = km.predict(data)?;
 
         // ------------------------------------------------------------------ //
-        // Step 3: Algorithm selection via metric consensus                     //
-        //                                                                     //
-        // No single internal metric reliably distinguishes density-based      //
-        // from centroid-based clusterings across all data shapes:             //
-        //   • Silhouette / CH favour KMeans on non-convex data                //
-        //   • DBCV favours DenSOM even on globular data                       //
-        //                                                                     //
-        // Consensus approach: DenSOM is chosen ONLY when BOTH a density-     //
-        // aware metric (DBCV) AND a shape-agnostic metric (silhouette)        //
-        // prefer it.  This avoids false positives in both directions.         //
-        //                                                                     //
-        //  • n ≤ DBCV_LIMIT: compute both metrics, require consensus.         //
-        //  • n > DBCV_LIMIT: O(n²) metrics too expensive — use KMeans.        //
+        // Step 3: Return KMeans result with the auto-detected k               //
         // ------------------------------------------------------------------ //
-        let n = data.nrows();
-        let dbcv_k = (n as f64).sqrt().round().max(3.0) as usize;
-
-        let use_densom = if ds_result.n_clusters < 2 {
-            false
-        } else if n <= DBCV_LIMIT {
-            // Reassign noise points to nearest cluster centroid so both
-            // methods are scored on identical full data.
-            let n_cols = data.ncols();
-            let n_clusters = ds_result.n_clusters;
-
-            let mut centroids = Array2::<f64>::zeros((n_clusters, n_cols));
-            let mut counts = vec![0usize; n_clusters];
-            for i in 0..n {
-                let l = ds_result.labels[i];
-                if l >= 0 {
-                    let c = l as usize;
-                    centroids.row_mut(c).scaled_add(1.0, &data.row(i));
-                    counts[c] += 1;
-                }
-            }
-            for c in 0..n_clusters {
-                if counts[c] > 0 {
-                    centroids
-                        .row_mut(c)
-                        .mapv_inplace(|v| v / counts[c] as f64);
-                }
-            }
-
-            let ds_full_labels: Array1<usize> = Array1::from_shape_fn(n, |i| {
-                let l = ds_result.labels[i];
-                if l >= 0 {
-                    l as usize
-                } else {
-                    let pt = data.row(i);
-                    let mut best_c = 0;
-                    let mut best_d = f64::INFINITY;
-                    for c in 0..n_clusters {
-                        let d = (&pt - &centroids.row(c))
-                            .mapv(|x| x * x)
-                            .sum();
-                        if d < best_d {
-                            best_d = d;
-                            best_c = c;
-                        }
-                    }
-                    best_c
-                }
-            });
-
-            // DBCV: density-aware (favours density-contour clusters).
-            let dbcv_ds = dbcv_score(&data.view(), &ds_full_labels.view(), dbcv_k)
-                .unwrap_or(f64::NEG_INFINITY);
-            let dbcv_km = dbcv_score(data, &km_labels.view(), dbcv_k)
-                .unwrap_or(f64::NEG_INFINITY);
-
-            // Silhouette: shape-agnostic (favours compact, well-separated).
-            let sil_ds = silhouette_score(&data.view(), &ds_full_labels.view())
-                .unwrap_or(-1.0);
-            let sil_km = silhouette_score(data, &km_labels.view())
-                .unwrap_or(-1.0);
-
-            // Consensus: DenSOM wins only if BOTH metrics prefer it.
-            dbcv_ds > dbcv_km && sil_ds > sil_km
-        } else {
-            // For large datasets, O(n²) metrics are too expensive.
-            // Default to KMeans — the safer choice for most data.
-            false
-        };
-
-        // ------------------------------------------------------------------ //
-        // Step 4: Return winner                                                //
-        // ------------------------------------------------------------------ //
-        if use_densom {
-            Ok(AutoSomResult {
-                labels:      ds_result.labels,
-                n_clusters:  ds_result.n_clusters,
-                k_detected,
-                algorithm:   AlgorithmChoice::DenSom,
-                noise_ratio: ds_result.noise_ratio,
-            })
-        } else {
-            let labels_i32 = km_labels.mapv(|l| l as i32);
-            Ok(AutoSomResult {
-                labels:      labels_i32,
-                n_clusters:  k_detected,
-                k_detected,
-                algorithm:   AlgorithmChoice::KMeans,
-                noise_ratio: 0.0,
-            })
-        }
+        let labels_i32 = km_labels.mapv(|l| l as i32);
+        Ok(AutoSomResult {
+            labels:      labels_i32,
+            n_clusters:  k_detected,
+            k_detected,
+            algorithm:   AlgorithmChoice::KMeans,
+            noise_ratio: 0.0,
+        })
     }
 }
 
