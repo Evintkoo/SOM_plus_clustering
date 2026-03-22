@@ -1,4 +1,3 @@
-#[allow(unused_imports)]
 use crate::{
     core::{
         neighborhood,
@@ -7,9 +6,7 @@ use crate::{
     },
     SomError,
 };
-#[allow(unused_imports)]
 use ndarray::{Array1, ArrayView2};
-#[allow(unused_imports)]
 use std::collections::VecDeque;
 
 pub struct DenSomResult {
