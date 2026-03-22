@@ -362,92 +362,177 @@ impl Som {
             hit_counts[bmu] += 1;
         }
 
-        // ── Step 2: KMeans on neurons → cluster assignment ───────────────── //
-        let mut km_neu = KMeansBuilder::new()
-            .n_clusters(k)
-            .method(KMeansInit::PlusPlus)
-            .max_iters(300)
-            .build();
-        km_neu.fit(&self.neurons.view())?;
-        let neuron_clusters = km_neu.predict(&self.neurons.view())?;
-
-        // ── Step 3: Data-space centroids (one E-step on raw data) ─────────── //
+        // ── Steps 2-4: Multi-restart ensemble ───────────────────────────── //
         //
-        // Each data point's BMU → neuron cluster → cluster id.
-        // We compute the mean of the raw data points in each cluster.
-        // This puts the seeds directly in data space rather than in neuron
-        // space, avoiding topology-distortion artefacts that neuron-weight
-        // averages carry when the SOM hasn't fully unfolded (small datasets,
-        // few epochs).
-        let d = self.dim;
-        let mut centroids       = Array2::<f64>::zeros((k, d));
-        let mut cluster_counts  = vec![0usize; k];
-        for (i, &bmu) in bmu_indices.iter().enumerate() {
-            let cluster = neuron_clusters[bmu];
-            for dim in 0..d {
-                centroids[[cluster, dim]] += data[[i, dim]];
-            }
-            cluster_counts[cluster] += 1;
-        }
-        // If any cluster has no assigned points, fall back to the hit-count-
-        // weighted neuron-space centroid so the seed is never a zero vector.
-        let mut fallback_needed = false;
-        for c in 0..k {
-            if cluster_counts[c] > 0 {
-                for dim in 0..d {
-                    centroids[[c, dim]] /= cluster_counts[c] as f64;
-                }
+        // N_SOM_SEEDS topology-diverse runs:
+        //   Each re-runs KMeans++ on the neurons (different random seed each time)
+        //   → different neuron partition → different data-space centroids
+        //   → KMeans refinement on raw data.
+        //   The SOM topology ensures that seeds span the whole data space,
+        //   avoiding the "all seeds in one cluster" failure mode of vanilla
+        //   KMeans++ on high-k datasets.
+        //
+        // N_KPP_SEEDS fresh KMeans++ runs directly on raw data:
+        //   Independent fallback restarts for simple datasets where the SOM
+        //   neuron partition is not helpful.
+        //
+        // Best-of-all-runs selected by lowest inertia.
+        // ── Neuron-grid restart budget ───────────────────────────────────── //
+        // We run many cheap KMeans++ restarts on the small neuron grid first
+        // (O(n_neurons) each) to find a high-quality neuron partition, then
+        // carry that forward to the data step.  Then compare with fresh
+        // KMeans++ runs on the full data.  Final selection uses inertia, which
+        // is reliable for finding the KMeans global minimum.
+        const N_NEU_RESTARTS: usize = 20; // neuron-grid restarts (fast: ≤225 pts)
+        const N_SOM_DATA:     usize =  3; // top neuron partitions → data step
+        const N_KPP_SEEDS:    usize = 10; // fresh KMeans++ on raw data
+
+        let d  = self.dim;
+        let n  = data.nrows();
+        // Silhouette correlates with ARI better than raw inertia.
+        // For large n we use a random subsample so the cost stays O(SAMPLE²).
+        // Collect ALL runs with their inertia, then apply two-stage selection:
+        //   Stage 1 (filter): keep only runs within 5% of the global min inertia.
+        //              This eliminates degenerate/merged-cluster SOM seeds.
+        //   Stage 2 (pick):   from survivors, return the run with highest silhouette.
+        //              Silhouette captures the "naturalness" of the boundary better
+        //              than raw inertia for datasets where the KMeans global minimum
+        //              differs from the true partition boundary (breast_cancer, etc.).
+        //
+        // Silhouette is computed on a sample of SIL_SAMPLE points for large n,
+        // keeping cost O(SIL_SAMPLE²) regardless of dataset size.
+        const SIL_SAMPLE: usize = 2_000;
+
+        // All runs: (inertia, labels).
+        let mut all_runs: Vec<(f64, Array1<usize>)> = Vec::new();
+
+        // Closure: compute (possibly sampled) silhouette for a label array.
+        let score_labels = |labels: &Array1<usize>| -> f64 {
+            if n <= SIL_SAMPLE {
+                silhouette_score(&data.view(), &labels.view()).unwrap_or(f64::NEG_INFINITY)
             } else {
-                fallback_needed = true;
+                use rand::seq::SliceRandom;
+                let mut idx: Vec<usize> = (0..n).collect();
+                idx.shuffle(&mut rand::thread_rng());
+                idx.truncate(SIL_SAMPLE);
+                let sd = Array2::from_shape_fn((SIL_SAMPLE, d), |(i, j)| data[[idx[i], j]]);
+                let sl = Array1::from_shape_fn(SIL_SAMPLE, |i| labels[idx[i]]);
+                silhouette_score(&sd.view(), &sl.view()).unwrap_or(f64::NEG_INFINITY)
+            }
+        };
+
+        // ── Phase A: Many cheap restarts on the neuron grid ─────────────── //
+        // Collect neuron-KMeans runs sorted by ascending neuron-inertia.
+        // The top-N_SOM_DATA partitions represent the best topology-aware
+        // cluster seeds; we carry only those forward to the expensive data step.
+        let mut neu_runs: Vec<(f64, Array1<usize>)> = Vec::with_capacity(N_NEU_RESTARTS);
+        for _ in 0..N_NEU_RESTARTS {
+            let mut km_neu = KMeansBuilder::new()
+                .n_clusters(k)
+                .method(KMeansInit::PlusPlus)
+                .max_iters(300)
+                .build();
+            if km_neu.fit(&self.neurons.view()).is_err() { continue; }
+            let inertia = km_neu.inertia().unwrap_or(f64::INFINITY);
+            if let Ok(nc) = km_neu.predict(&self.neurons.view()) {
+                neu_runs.push((inertia, nc));
             }
         }
-        if fallback_needed {
-            let mut neuron_weights  = Array2::<f64>::zeros((k, d));
-            let mut neuron_w_sums   = vec![0.0f64; k];
-            for (j, &cluster) in neuron_clusters.iter().enumerate() {
-                let w = (hit_counts[j] as f64).max(0.5);
+        // Keep the N_SOM_DATA best-by-neuron-inertia partitions.
+        neu_runs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        neu_runs.truncate(N_SOM_DATA);
+
+        // ── Phase B: Data-space KMeans from top SOM seeds ───────────────── //
+        for (_, neuron_clusters) in &neu_runs {
+            // Data-space centroids: mean of raw data points per cluster.
+            let mut centroids      = Array2::<f64>::zeros((k, d));
+            let mut cluster_counts = vec![0usize; k];
+            for (i, &bmu) in bmu_indices.iter().enumerate() {
+                let cluster = neuron_clusters[bmu];
                 for dim in 0..d {
-                    neuron_weights[[cluster, dim]] += w * self.neurons[[j, dim]];
+                    centroids[[cluster, dim]] += data[[i, dim]];
                 }
-                neuron_w_sums[cluster] += w;
+                cluster_counts[cluster] += 1;
             }
+            let mut fallback_needed = false;
             for c in 0..k {
-                if cluster_counts[c] == 0 && neuron_w_sums[c] > 0.0 {
+                if cluster_counts[c] > 0 {
                     for dim in 0..d {
-                        centroids[[c, dim]] = neuron_weights[[c, dim]] / neuron_w_sums[c];
+                        centroids[[c, dim]] /= cluster_counts[c] as f64;
+                    }
+                } else {
+                    fallback_needed = true;
+                }
+            }
+            if fallback_needed {
+                // Neuron-weight fallback for empty clusters.
+                let mut neuron_weights = Array2::<f64>::zeros((k, d));
+                let mut neuron_w_sums  = vec![0.0f64; k];
+                for (j, &cluster) in neuron_clusters.iter().enumerate() {
+                    let w = (hit_counts[j] as f64).max(0.5);
+                    for dim in 0..d {
+                        neuron_weights[[cluster, dim]] += w * self.neurons[[j, dim]];
+                    }
+                    neuron_w_sums[cluster] += w;
+                }
+                for c in 0..k {
+                    if cluster_counts[c] == 0 && neuron_w_sums[c] > 0.0 {
+                        for dim in 0..d {
+                            centroids[[c, dim]] = neuron_weights[[c, dim]] / neuron_w_sums[c];
+                        }
                     }
                 }
             }
+
+            // KMeans refinement from SOM-derived centroids.
+            let mut km = KMeansBuilder::new().n_clusters(k).max_iters(300).build();
+            if km.fit_with_centroids(data, centroids).is_err() { continue; }
+            let inertia = km.inertia().unwrap_or(f64::INFINITY);
+            if let Ok(labels) = km.predict(data) {
+                all_runs.push((inertia, labels));
+            }
         }
 
-        // ── Step 4: Refine with KMeans on raw data ───────────────────────── //
-        //
-        // Run two candidates:
-        //   (a) SOM-seeded: starts from the data-space centroids computed above.
-        //   (b) Fresh KMeans++: standard random re-initialisation.
-        // Keep whichever reaches lower inertia, so the SOM seeding helps when
-        // the topology is good but never hurts when nearby clusters in the SOM
-        // neuron space happen to be merged by the neuron-cluster step.
-        let mut km_som = KMeansBuilder::new()
-            .n_clusters(k)
-            .max_iters(300)
-            .build();
-        km_som.fit_with_centroids(data, centroids)?;
-        let inertia_som = km_som.inertia().unwrap_or(f64::INFINITY);
-
-        let mut km_pp = KMeansBuilder::new()
-            .n_clusters(k)
-            .method(KMeansInit::PlusPlus)
-            .max_iters(300)
-            .build();
-        km_pp.fit(data)?;
-        let inertia_pp = km_pp.inertia().unwrap_or(f64::INFINITY);
-
-        if inertia_som <= inertia_pp {
-            km_som.predict(data)
-        } else {
-            km_pp.predict(data)
+        // ── Phase C: Fresh KMeans++ runs on raw data ─────────────────────── //
+        for _ in 0..N_KPP_SEEDS {
+            let mut km = KMeansBuilder::new()
+                .n_clusters(k)
+                .method(KMeansInit::PlusPlus)
+                .max_iters(300)
+                .build();
+            if km.fit(data).is_err() { continue; }
+            let inertia = km.inertia().unwrap_or(f64::INFINITY);
+            if let Ok(labels) = km.predict(data) {
+                all_runs.push((inertia, labels));
+            }
         }
+
+        // ── Two-stage selection ───────────────────────────────────────────── //
+        if all_runs.is_empty() {
+            return Err(SomError::NotFitted("predict_clustered_refined"));
+        }
+        // Stage 1: inertia filter — keep runs within 5% of the global minimum.
+        let min_inertia = all_runs.iter().map(|(i, _)| *i).fold(f64::INFINITY, f64::min);
+        let threshold   = min_inertia * 1.05;
+        // Stage 2: silhouette selection among the filtered candidates.
+        let mut best_sil    = f64::NEG_INFINITY;
+        let mut best_labels = None;
+        for (inertia, labels) in &all_runs {
+            if *inertia <= threshold {
+                let sil = score_labels(labels);
+                if sil > best_sil {
+                    best_sil    = sil;
+                    best_labels = Some(labels.clone());
+                }
+            }
+        }
+        // Fallback: best by inertia (in case silhouette fails for all candidates).
+        best_labels.or_else(|| {
+            all_runs.into_iter()
+                .min_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal))
+                .map(|(_, l)| l)
+        })
+        .ok_or(SomError::NotFitted("predict_clustered_refined"))
     }
 
     /// Two-phase SOM clustering: cluster the neuron weight vectors with
