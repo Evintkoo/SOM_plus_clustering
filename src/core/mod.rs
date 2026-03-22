@@ -1,5 +1,6 @@
 pub mod distance;
 pub mod evals;
+pub mod gmm;
 pub mod init;
 pub mod kde;
 pub mod kmeans;

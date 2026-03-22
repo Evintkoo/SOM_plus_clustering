@@ -3,6 +3,7 @@ use crate::{
         densom::DenSom,
         distance::DistanceFunction,
         evals::silhouette_score,
+        gmm::{Gmm, gmm_bic_select_k},
         kmeans::{KMeansBuilder, KMeansInit},
         som::{InitMethod, SomBuilder},
         SigmaMethod,
@@ -16,13 +17,15 @@ use rand::{SeedableRng, rngs::StdRng, Rng};
 pub enum AlgorithmChoice {
     DenSom,
     KMeans,
+    Gmm,
 }
 
 impl std::fmt::Display for AlgorithmChoice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             AlgorithmChoice::DenSom  => write!(f, "DenSOM"),
-            AlgorithmChoice::KMeans => write!(f, "KMeans"),
+            AlgorithmChoice::KMeans  => write!(f, "KMeans"),
+            AlgorithmChoice::Gmm     => write!(f, "GMM"),
         }
     }
 }
@@ -224,10 +227,40 @@ impl AutoSom {
         let sample_idx = build_sample_idx(n, SIL_SAMPLE, &neuron_labels);
         let sample_data = subset_rows(data, &sample_idx);
 
-        let all_candidates: Vec<usize> = (2..=max_k).collect();
+        // 2c. Dual k-selection: gap statistic (argmax) + GMM-BIC, take max.
+        //
+        // Gap statistic is reliable for well-separated and large-k Gaussian clusters
+        // (a2, a3 with k=35/50).  GMM-BIC is better for heavily overlapping Gaussians
+        // (s3, s4) where gap(k) is flat.  Taking max(k_gap, k_gmm) captures the
+        // correct k from whichever method sees the structure more clearly.
+        //
+        // For high-d data the GMM sweep is bounded to a ±5 window around k_elbow.
+        let best_k = {
+            let d = data.ncols();
+            let all_candidates: Vec<usize> = (2..=max_k).collect();
+            let k_gap = gap_statistic(&sample_data.view(), &all_candidates, c.gap_n_refs, k_elbow);
 
-        // Run gap statistic on raw data subsample
-        let best_k = gap_statistic(&sample_data.view(), &all_candidates, c.gap_n_refs, k_elbow);
+            let k_gmm = if d <= 10 {
+                gmm_bic_select_k(&sample_data.view(), max_k, k_elbow)
+            } else {
+                let lo = k_elbow.saturating_sub(5).max(2);
+                let hi = (k_elbow + 5).min(max_k);
+                let mut best_k_w = k_elbow;
+                let mut best_bic = f64::INFINITY;
+                for k in lo..=hi {
+                    if sample_data.nrows() < 2 * k { continue; }
+                    if let Ok(gmm) = Gmm::fit(&sample_data.view(), k, 100, 1e-4, 3) {
+                        if gmm.bic < best_bic {
+                            best_bic = gmm.bic;
+                            best_k_w = k;
+                        }
+                    }
+                }
+                best_k_w
+            };
+
+            k_gap.max(k_gmm)
+        };
 
         // ------------------------------------------------------------------ //
         // Step 3: Run KMeans directly on raw data with best_k                 //
@@ -267,6 +300,26 @@ impl AutoSom {
         };
 
         // ------------------------------------------------------------------ //
+        // Stage 3b: GMM on raw data with best_k (soft-boundary alternative)  //
+        // ------------------------------------------------------------------ //
+        let (gmm_labels, gmm_sil) = {
+            match Gmm::fit(data, best_k, 100, 1e-4, 3) {
+                Ok(gmm) => {
+                    let labels = gmm.predict(data);
+                    let sil = {
+                        let sample_labels = Array1::from_shape_fn(sample_idx.len(), |i| {
+                            labels[sample_idx[i]]
+                        });
+                        silhouette_score(&sample_data.view(), &sample_labels.view())
+                            .unwrap_or(f64::NAN)
+                    };
+                    (Some(labels), sil)
+                }
+                Err(_) => (None, f64::NAN),
+            }
+        };
+
+        // ------------------------------------------------------------------ //
         // Step 4: DenSOM comparison                                           //
         // ------------------------------------------------------------------ //
         let mut densom = DenSom::from_som(som.clone());
@@ -293,20 +346,20 @@ impl AutoSom {
         };
 
         // ------------------------------------------------------------------ //
-        // Step 5: Pick winner                                                 //
+        // Step 5: Pick winner — three-way silhouette comparison               //
         // ------------------------------------------------------------------ //
         let ds_n = ds_result.n_clusters;
-        // DenSOM wins when:
-        // - It found >= 2 clusters
-        // - Noise is under 20%
-        // - Its silhouette is meaningfully better than KMeans
-        // OR when KMeans silhouette is very poor (< 0.05, suggesting non-convex data)
-        //    and DenSOM has decent silhouette
-        let use_densom = ds_sil.is_finite() && ds_n >= 2 && ds_result.noise_ratio < 0.20
-            && (ds_sil > km_sil + 0.02
-                || (km_sil < 0.05 && ds_sil > 0.1));
 
-        if use_densom {
+        // DenSOM is eligible when: ≥2 clusters, noise < 20%, clearly better sil
+        let densom_eligible = ds_sil.is_finite() && ds_n >= 2
+            && ds_result.noise_ratio < 0.20
+            && (ds_sil > km_sil + 0.02 || (km_sil < 0.05 && ds_sil > 0.1));
+
+        // GMM is eligible when: fit succeeded and silhouette beats KMeans
+        let gmm_eligible = gmm_sil.is_finite() && gmm_sil > km_sil + 0.02;
+
+        // Prefer GMM over DenSOM only if GMM silhouette is also better
+        if densom_eligible && (!gmm_eligible || ds_sil >= gmm_sil) {
             Ok(AutoSomResult {
                 labels:      ds_result.labels,
                 n_clusters:  ds_n,
@@ -314,8 +367,19 @@ impl AutoSom {
                 algorithm:   AlgorithmChoice::DenSom,
                 noise_ratio: ds_result.noise_ratio,
             })
+        } else if gmm_eligible {
+            let labels_i32 = gmm_labels
+                .expect("gmm_eligible but no gmm_labels")
+                .mapv(|l| l as i32);
+            Ok(AutoSomResult {
+                labels:      labels_i32,
+                n_clusters:  best_k,
+                k_detected:  best_k,
+                algorithm:   AlgorithmChoice::Gmm,
+                noise_ratio: 0.0,
+            })
         } else {
-            // km_labels is Array1<usize> from raw KMeans
+            // Default: KMeans
             let labels_i32 = km_labels.mapv(|l| l as i32);
             Ok(AutoSomResult {
                 labels:      labels_i32,
@@ -481,14 +545,13 @@ fn compute_adaptive_sigma(
 
 /// Gap statistic for k selection using argmax Gap(k).
 ///
-/// For each candidate k (sorted ascending), computes:
+/// For each candidate k, computes:
 ///   Gap(k) = E[log W_k^ref] - log W_k
 ///
 /// where W_k^ref is within-cluster dispersion on `n_refs` uniform reference
-/// datasets sampled in the per-dimension bounding box.
+/// datasets sampled in the per-dimension bounding box of `sample_data`.
 ///
-/// Selects k = argmax Gap(k) — the value with the highest Gap.
-/// Falls back to `k_elbow` if all fits fail.
+/// Returns argmax Gap(k). Falls back to `k_elbow` if all KMeans fits fail.
 fn gap_statistic(
     sample_data: &ArrayView2<f64>,
     candidates:  &[usize],
@@ -498,7 +561,6 @@ fn gap_statistic(
     let n = sample_data.nrows();
     let d = sample_data.ncols();
 
-    // Per-dimension bounding box
     let mut col_min = vec![f64::INFINITY;     d];
     let mut col_max = vec![f64::NEG_INFINITY; d];
     for j in 0..d {
@@ -509,14 +571,12 @@ fn gap_statistic(
         }
     }
 
-    // Per-call seed derived from sample size for reproducibility.
     let base_seed = n as u64;
-    let mut gap_vals: Vec<(usize, f64)> = Vec::new(); // (k, gap)
+    let mut gap_vals: Vec<(usize, f64)> = Vec::new();
 
     for &k in candidates {
-        if n < 2 * k { continue; } // too few points for this k
+        if n < 2 * k { continue; }
 
-        // Inertia on actual data.
         let mut km = KMeansBuilder::new()
             .n_clusters(k)
             .method(KMeansInit::PlusPlus)
@@ -526,7 +586,6 @@ fn gap_statistic(
         let wk = km.inertia().unwrap_or(0.0);
         let log_wk = if wk > 0.0 { wk.ln() } else { continue; };
 
-        // Inertia on n_refs uniform reference datasets in the bounding box.
         let mut ref_log_wks: Vec<f64> = Vec::with_capacity(n_refs);
         let mut rng = StdRng::seed_from_u64(base_seed.wrapping_add(k as u64));
 
@@ -551,20 +610,19 @@ fn gap_statistic(
 
         let b        = ref_log_wks.len() as f64;
         let mean_ref = ref_log_wks.iter().sum::<f64>() / b;
-        let gap      = mean_ref - log_wk;
-        gap_vals.push((k, gap));
+        gap_vals.push((k, mean_ref - log_wk));
     }
 
     if gap_vals.is_empty() {
         return k_elbow;
     }
 
-    // Return argmax Gap(k)
     gap_vals.iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
         .map(|&(k, _)| k)
         .unwrap_or(k_elbow)
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -624,7 +682,8 @@ mod tests {
             .unwrap();
         assert_eq!(result.labels.len(), data.nrows());
         for &l in result.labels.iter() {
-            assert!(l >= -1 && (l as usize) < result.n_clusters + 1,
+            // -1 is a valid noise label (DenSOM); other labels must be in [0, n_clusters)
+            assert!(l == -1 || (l >= 0 && (l as usize) < result.n_clusters),
                 "label {l} out of range for n_clusters={}", result.n_clusters);
         }
     }
@@ -684,17 +743,14 @@ mod tests {
     }
 
     #[test]
-    fn gap_statistic_two_blobs() {
-        // Two tight, well-separated blobs at (0,0) and (10,10).
-        // Elbow-of-Gap criterion should pick k=2 (argmax Δ²(-Gap)).
-        // The key invariant is that it returns a valid k in the candidate set.
+    fn gmm_bic_selects_two_for_two_blobs() {
+        // Two tight 2D grids, well-separated — GMM-BIC on full range should pick k=2.
+        use crate::core::gmm::gmm_bic_select_k;
         let mut v = Vec::with_capacity(200);
-        for i in 0..50i64 { v.push(i as f64 * 0.01); v.push(i as f64 * 0.01); }
-        for i in 0..50i64 { v.push(10.0 + i as f64 * 0.01); v.push(10.0 + i as f64 * 0.01); }
-        let data = Array2::from_shape_vec((100, 2), v).unwrap();
-        let candidates = vec![2, 3, 4];
-        let best = gap_statistic(&data.view(), &candidates, 10, 2);
-        // With Tibshirani criterion, best_k should be in the candidate set
-        assert!(candidates.contains(&best), "gap_statistic must return a candidate k, got k={best}");
+        for i in 0..10usize { for j in 0..10usize { v.push(i as f64); v.push(j as f64); } }
+        for i in 0..10usize { for j in 0..10usize { v.push(100.0 + i as f64); v.push(100.0 + j as f64); } }
+        let data = Array2::from_shape_vec((200, 2), v).unwrap();
+        let best = gmm_bic_select_k(&data.view(), 6, 2);
+        assert_eq!(best, 2, "GMM-BIC should pick k=2 for two well-separated blobs, got {best}");
     }
 }
