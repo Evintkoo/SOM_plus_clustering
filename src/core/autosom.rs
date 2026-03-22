@@ -225,7 +225,17 @@ impl AutoSom {
         let sample_data = subset_rows(data, &sample_idx);
 
         let all_candidates: Vec<usize> = (2..=max_k).collect();
-        let best_k = gap_statistic(&sample_data.view(), &all_candidates, c.gap_n_refs, k_elbow);
+
+        // Run gap statistic on raw data subsample
+        let k_raw = gap_statistic(&sample_data.view(), &all_candidates, c.gap_n_refs, k_elbow);
+
+        // Run gap statistic on SOM neurons: neuron weight vectors represent cluster
+        // centroids, giving a cleaner cluster signal even when raw data clusters overlap.
+        let k_neurons = gap_statistic(&neurons.view(), &all_candidates, c.gap_n_refs, k_elbow);
+
+        // Take the max: guards against underestimation for overlapping clusters.
+        // For well-separated clusters both agree, so max = correct k.
+        let best_k = k_raw.max(k_neurons);
 
         // ------------------------------------------------------------------ //
         // Step 3: Run KMeans directly on raw data with best_k                 //
