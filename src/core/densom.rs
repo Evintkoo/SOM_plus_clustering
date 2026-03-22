@@ -308,6 +308,53 @@ impl DenSom {
         self.fitted = true;
         Ok(())
     }
+
+    pub fn predict(&self, data: &ArrayView2<f64>) -> Result<DenSomResult, SomError> {
+        if !self.fitted {
+            return Err(SomError::NotFitted("predict"));
+        }
+        let bmu_labels = self.som.predict(data)?;
+        let n = data.nrows();
+        let max_density = self
+            .smooth_density
+            .iter()
+            .cloned()
+            .fold(0.0f64, f64::max);
+
+        let mut labels  = Array1::<i32>::zeros(n);
+        let mut density = Array1::<f64>::zeros(n);
+        let mut noise_count = 0usize;
+
+        for (i, &b) in bmu_labels.iter().enumerate() {
+            labels[i] = self.cluster_map[b];
+            density[i] = if max_density > 0.0 {
+                self.smooth_density[b] / max_density
+            } else {
+                0.0
+            };
+            if labels[i] < 0 {
+                noise_count += 1;
+            }
+        }
+
+        Ok(DenSomResult {
+            labels,
+            density,
+            n_clusters:  self.n_clusters,
+            noise_ratio: noise_count as f64 / n as f64,
+        })
+    }
+
+    pub fn fit_predict(
+        &mut self,
+        data: &ArrayView2<f64>,
+        epoch: usize,
+        shuffle: bool,
+        batch_size: Option<usize>,
+    ) -> Result<DenSomResult, SomError> {
+        self.fit(data, epoch, shuffle, batch_size)?;
+        self.predict(data)
+    }
 }
 
 #[cfg(test)]
@@ -458,5 +505,28 @@ mod tests {
         let mut densom = DenSomBuilder::new().grid(3, 3).dim(2).build();
         let result = densom.fit(&data.view(), 1, false, None);
         assert!(matches!(result, Err(SomError::InsufficientData { .. })));
+    }
+
+    #[test]
+    fn predict_returns_correct_fields() {
+        let mut data_vec: Vec<f64> = Vec::new();
+        for i in 0..30 { data_vec.push(i as f64 * 0.01); data_vec.push(0.0); }
+        for i in 0..30 { data_vec.push(10.0 + i as f64 * 0.01); data_vec.push(0.0); }
+        let data = Array2::from_shape_vec((60, 2), data_vec).unwrap();
+        let mut densom = DenSomBuilder::new().grid(6, 6).dim(2).build();
+        let result = densom.fit_predict(&data.view(), 5, false, None).unwrap();
+        assert_eq!(result.labels.len(), 60);
+        assert_eq!(result.density.len(), 60);
+        assert!(result.density.iter().all(|&d| d >= 0.0 && d <= 1.0),
+                "all density scores must be in [0,1]");
+        assert!(result.noise_ratio >= 0.0 && result.noise_ratio <= 1.0);
+    }
+
+    #[test]
+    fn predict_not_fitted_error() {
+        let densom = DenSomBuilder::new().grid(3, 3).dim(2).build();
+        let data = Array2::<f64>::zeros((5, 2));
+        let result = densom.predict(&data.view());
+        assert!(matches!(result, Err(SomError::NotFitted(_))));
     }
 }
