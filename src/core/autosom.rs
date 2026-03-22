@@ -227,15 +227,7 @@ impl AutoSom {
         let all_candidates: Vec<usize> = (2..=max_k).collect();
 
         // Run gap statistic on raw data subsample
-        let k_raw = gap_statistic(&sample_data.view(), &all_candidates, c.gap_n_refs, k_elbow);
-
-        // Run gap statistic on SOM neurons: neuron weight vectors represent cluster
-        // centroids, giving a cleaner cluster signal even when raw data clusters overlap.
-        let k_neurons = gap_statistic(&neurons.view(), &all_candidates, c.gap_n_refs, k_elbow);
-
-        // Take the max: guards against underestimation for overlapping clusters.
-        // For well-separated clusters both agree, so max = correct k.
-        let best_k = k_raw.max(k_neurons);
+        let best_k = gap_statistic(&sample_data.view(), &all_candidates, c.gap_n_refs, k_elbow);
 
         // ------------------------------------------------------------------ //
         // Step 3: Run KMeans directly on raw data with best_k                 //
@@ -494,14 +486,12 @@ fn compute_adaptive_sigma(
 ///
 /// where W_k^ref is within-cluster dispersion on `n_refs` diagonal Gaussian
 /// reference datasets (Method B: per-dimension mean and std matching the data).
-/// This correctly models the null hypothesis "data comes from one Gaussian"
-/// vs "data has k Gaussian components," giving a clear Gap peak at k_true.
+/// Gaussian reference makes SE smaller (more stable than uniform), preventing
+/// premature stopping.
 ///
-/// Selects k with maximum Gap(k). Argmax is robust across cluster counts and
-/// avoids the Tibshirani forward criterion's pitfall of stopping too early
-/// when B is small (large SE on high-k datasets).
-///
-/// Falls back to `k_elbow` if all fits fail.
+/// Selects smallest k where Gap(k) ≥ Gap(k+1) − SE(k+1) (Tibshirani criterion).
+/// Falls back to argmax Gap(k) if criterion is never met, or to `k_elbow`
+/// if all fits fail.
 fn gap_statistic(
     sample_data: &ArrayView2<f64>,
     candidates:  &[usize],
@@ -526,7 +516,7 @@ fn gap_statistic(
 
     // Per-call seed derived from sample size for reproducibility.
     let base_seed = n as u64;
-    let mut gap_vals: Vec<(usize, f64)> = Vec::new(); // (k, gap)
+    let mut gap_vals: Vec<(usize, f64, f64)> = Vec::new(); // (k, gap, se)
 
     for &k in candidates {
         if n < 2 * k { continue; } // too few points for this k
@@ -568,20 +558,36 @@ fn gap_statistic(
         let b        = ref_log_wks.len() as f64;
         let mean_ref = ref_log_wks.iter().sum::<f64>() / b;
         let gap      = mean_ref - log_wk;
-
-        gap_vals.push((k, gap));
+        let std_ref  = if b > 1.0 {
+            (ref_log_wks.iter()
+                .map(|&x| (x - mean_ref).powi(2))
+                .sum::<f64>()
+                / (b - 1.0)).sqrt()
+        } else {
+            0.0
+        };
+        let se = std_ref * (1.0 + 1.0 / b).sqrt();
+        gap_vals.push((k, gap, se));
     }
 
     if gap_vals.is_empty() {
         return k_elbow;
     }
 
-    // Select k with maximum Gap(k). Argmax is robust across cluster counts;
-    // the Tibshirani forward criterion was removed because it stops too early
-    // when B is small (large SE on high-k datasets).
+    // Tibshirani criterion: smallest k where Gap(k) ≥ Gap(k_next) − SE(k_next).
+    // k_next is the next element in gap_vals (not necessarily k+1 in integers).
+    for i in 0..gap_vals.len().saturating_sub(1) {
+        let (k, gap_k, _)          = gap_vals[i];
+        let (_, gap_next, se_next) = gap_vals[i + 1];
+        if gap_k >= gap_next - se_next {
+            return k;
+        }
+    }
+
+    // Fallback: k with maximum Gap(k) when Tibshirani criterion not met.
     gap_vals.iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-        .map(|&(k, _)| k)
+        .map(|&(k, _, _)| k)
         .unwrap_or(k_elbow)
 }
 
@@ -705,16 +711,15 @@ mod tests {
     #[test]
     fn gap_statistic_two_blobs() {
         // Two tight, well-separated blobs at (0,0) and (10,10).
-        // Argmax Gap(k) is robust across cluster counts. With argmax criterion,
-        // it picks the k with the absolute maximum gap, which may vary with
-        // random reference data. The key invariant is that it returns a valid k.
+        // Tibshirani criterion should pick k=2 (Gap(2) ≥ Gap(3) − SE(3)).
+        // The key invariant is that it returns a valid k in the candidate set.
         let mut v = Vec::with_capacity(200);
         for i in 0..50i64 { v.push(i as f64 * 0.01); v.push(i as f64 * 0.01); }
         for i in 0..50i64 { v.push(10.0 + i as f64 * 0.01); v.push(10.0 + i as f64 * 0.01); }
         let data = Array2::from_shape_vec((100, 2), v).unwrap();
         let candidates = vec![2, 3, 4];
         let best = gap_statistic(&data.view(), &candidates, 10, 2);
-        // With argmax, best_k should be in the candidate set
+        // With Tibshirani criterion, best_k should be in the candidate set
         assert!(candidates.contains(&best), "gap_statistic must return a candidate k, got k={best}");
     }
 }
