@@ -27,13 +27,19 @@ impl std::fmt::Display for AlgorithmChoice {
 }
 
 pub struct AutoSomResult {
+    /// Final cluster labels. -1 means noise (DenSOM only); KMeans assigns all points ≥ 0.
     pub labels:      Array1<i32>,
+    /// Number of clusters found (noise label excluded).
     pub n_clusters:  usize,
+    /// Number of clusters detected by the k-selection step (elbow + gap statistic).
     pub k_detected:  usize,
+    /// Algorithm that produced the final labels.
     pub algorithm:   AlgorithmChoice,
+    /// Fraction of points assigned noise label (-1). Always 0.0 for KMeans.
     pub noise_ratio: f64,
 }
 
+/// Builder for the AutoSom automatic clustering pipeline.
 pub struct AutoSomBuilder {
     som_m:           usize,
     som_n:           usize,
@@ -43,8 +49,9 @@ pub struct AutoSomBuilder {
     init_method:     InitMethod,
     distance:        DistanceFunction,
     smooth_sigma:    f64,
-    sigma_method:    SigmaMethod,   // NEW
-    gap_n_refs:      usize,         // NEW
+    sigma_method:    SigmaMethod,
+    /// Number of reference datasets for the gap statistic (used in k-selection). Default: 10.
+    gap_n_refs:      usize,
 }
 
 impl Default for AutoSomBuilder {
@@ -111,6 +118,7 @@ impl AutoSomBuilder {
         self
     }
 
+    /// Set the number of reference datasets for the gap statistic. Clamped to ≥ 1. Default: 10.
     pub fn gap_n_refs(mut self, n: usize) -> Self {
         self.gap_n_refs = n.max(1);
         self
@@ -179,7 +187,7 @@ impl AutoSom {
         // Step 2: Silhouette + CH sweep on data, KMeans on neurons            //
         // ------------------------------------------------------------------ //
         let mn = c.som_m * c.som_n;
-        let max_k = (mn / 2).min(50).max(2);
+        let max_k = (mn / 2).clamp(2, 50);
 
         // Collect (sil, ch) for each k to normalize and combine.
         let mut k_scores: Vec<(usize, f64, f64)> = Vec::new();
