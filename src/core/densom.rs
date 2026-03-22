@@ -676,7 +676,7 @@ mod tests {
         let old = smooth_hits_reference(&hits, 5, 5, 1.0);
         let new = smooth_hits(&hits, 5, 5, 1.0);
         for (o, n) in old.iter().zip(new.iter()) {
-            assert!((o - n).abs() < 1e-8, "square mismatch: old={o} new={n}");
+            assert!((o - n).abs() < 1e-2, "square mismatch: old={o} new={n}");
         }
     }
 
@@ -692,52 +692,30 @@ mod tests {
         let old = smooth_hits_reference(&hits, 4, 6, 1.5);
         let new = smooth_hits(&hits, 4, 6, 1.5);
         for (o, n) in old.iter().zip(new.iter()) {
-            assert!((o - n).abs() < 1e-8, "rect mismatch: old={o} new={n}");
+            assert!((o - n).abs() < 1e-2, "rect mismatch: old={o} new={n}");
         }
     }
 
-    /// Reference implementation: same truncated separable two-pass as smooth_hits,
-    /// written with explicit full-range inner loops for clarity. Produces bit-for-bit
-    /// identical results to smooth_hits because iteration order and arithmetic are the same.
+    /// Full O(m²n²) 2D Gaussian reference — used only for testing separable implementation.
+    /// This is the original pre-optimization algorithm.
     fn smooth_hits_reference(hits: &[usize], m: usize, n: usize, sigma: f64) -> ndarray::Array1<f64> {
         let sigma = sigma.max(1e-6);
-        let r = (3.0 * sigma).ceil() as usize;
         let mn = m * n;
-        let weights: Vec<f64> = (0..=(2 * r))
-            .map(|i| {
-                let d = i as f64 - r as f64;
-                (-d * d / (2.0 * sigma * sigma)).exp()
-            })
-            .collect();
-
-        // Row pass — identical loop structure to smooth_hits.
-        let mut out_h = vec![0.0f64; mn];
-        for i in 0..m {
-            for j in 0..n {
-                let mut acc = 0.0f64;
-                for (wi, dj_signed) in (0..=(2 * r)).map(|x| (x, x as isize - r as isize)) {
-                    let jj = j as isize + dj_signed;
-                    if jj >= 0 && jj < n as isize {
-                        acc += weights[wi] * hits[i * n + jj as usize] as f64;
-                    }
-                }
-                out_h[i * n + j] = acc;
-            }
-        }
-
-        // Column pass — identical loop structure to smooth_hits.
         let mut out = ndarray::Array1::<f64>::zeros(mn);
-        for i in 0..m {
-            for j in 0..n {
-                let mut acc = 0.0f64;
-                for (wi, di_signed) in (0..=(2 * r)).map(|x| (x, x as isize - r as isize)) {
-                    let ii = i as isize + di_signed;
-                    if ii >= 0 && ii < m as isize {
-                        acc += weights[wi] * out_h[ii as usize * n + j];
-                    }
-                }
-                out[i * n + j] = acc;
+        for i in 0..mn {
+            let ri = (i / n) as f64;
+            let ci = (i % n) as f64;
+            let mut acc = 0.0f64;
+            for (j, &hit) in hits.iter().enumerate().take(mn) {
+                let rj = (j / n) as f64;
+                let cj = (j % n) as f64;
+                let dr = ri - rj;
+                let dc = ci - cj;
+                let dist_sq = dr * dr + dc * dc;
+                // neighborhood::gaussian: exp(-dist_sq / (2 * sigma^2))
+                acc += crate::core::neighborhood::gaussian(dist_sq, 1.0, sigma) * hit as f64;
             }
+            out[i] = acc;
         }
         out
     }
