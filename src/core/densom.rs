@@ -34,6 +34,29 @@ pub struct DenSom {
     fitted:         bool,
 }
 
+/// Gaussian-smooth the flat BMU hit map over the m×n neuron grid.
+/// Uses neighborhood::gaussian(dist_sq, lr=1.0, radius=sigma).
+fn smooth_hits(hits: &[usize], m: usize, n: usize, sigma: f64) -> Array1<f64> {
+    let sigma = sigma.max(1e-6);
+    let mn = m * n;
+    let mut out = Array1::<f64>::zeros(mn);
+    for i in 0..mn {
+        let ri = (i / n) as f64;
+        let ci = (i % n) as f64;
+        let mut acc = 0.0f64;
+        for j in 0..mn {
+            let rj = (j / n) as f64;
+            let cj = (j % n) as f64;
+            let dr = ri - rj;
+            let dc = ci - cj;
+            let dist_sq = dr * dr + dc * dc;
+            acc += neighborhood::gaussian(dist_sq, 1.0, sigma) * hits[j] as f64;
+        }
+        out[i] = acc;
+    }
+    out
+}
+
 /// Otsu's method: finds the threshold that maximises between-class variance.
 /// Returns the threshold value in the same units as `values`.
 fn otsu(values: &[f64]) -> f64 {
@@ -90,5 +113,21 @@ mod tests {
         let tau = otsu(&vals);
         assert!(tau > 0.05, "threshold {tau} should be above the low class");
         assert!(tau < 0.95, "threshold {tau} should be below the high class");
+    }
+
+    #[test]
+    fn smooth_hits_peak_preserved() {
+        // 3×3 grid, single hot neuron at centre (index 4)
+        let mut hits = [0usize; 9];
+        hits[4] = 100;
+        let smooth = smooth_hits(&hits, 3, 3, 1.0);
+        // Centre must still be the maximum after smoothing
+        let max_idx = smooth
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+            .map(|(i, _)| i)
+            .unwrap();
+        assert_eq!(max_idx, 4, "peak should stay at centre neuron");
     }
 }
