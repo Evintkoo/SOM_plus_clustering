@@ -479,19 +479,18 @@ fn compute_adaptive_sigma(
     h.clamp(0.5, grid_side / 2.0)
 }
 
-/// Gap statistic (Tibshirani et al. 2001) for k selection.
+/// Gap statistic for k selection using elbow-of-Gap curve.
 ///
 /// For each candidate k (sorted ascending), computes:
 ///   Gap(k) = E[log W_k^ref] - log W_k
 ///
 /// where W_k^ref is within-cluster dispersion on `n_refs` diagonal Gaussian
 /// reference datasets (Method B: per-dimension mean and std matching the data).
-/// Gaussian reference makes SE smaller (more stable than uniform), preventing
-/// premature stopping.
 ///
-/// Selects smallest k where Gap(k) ≥ Gap(k+1) − SE(k+1) (Tibshirani criterion).
-/// Falls back to argmax Gap(k) if criterion is never met, or to `k_elbow`
-/// if all fits fail.
+/// Selects k at the elbow of Gap(k) via argmax Δ²(-Gap), i.e. the point where
+/// Gap transitions from steeply increasing to slowly increasing (= k_true).
+/// Falls back to argmax Gap(k) if the curve has fewer than 3 points or is flat,
+/// or to `k_elbow` if all fits fail.
 fn gap_statistic(
     sample_data: &ArrayView2<f64>,
     candidates:  &[usize],
@@ -516,7 +515,7 @@ fn gap_statistic(
 
     // Per-call seed derived from sample size for reproducibility.
     let base_seed = n as u64;
-    let mut gap_vals: Vec<(usize, f64, f64)> = Vec::new(); // (k, gap, se)
+    let mut gap_vals: Vec<(usize, f64)> = Vec::new(); // (k, gap)
 
     for &k in candidates {
         if n < 2 * k { continue; } // too few points for this k
@@ -558,37 +557,45 @@ fn gap_statistic(
         let b        = ref_log_wks.len() as f64;
         let mean_ref = ref_log_wks.iter().sum::<f64>() / b;
         let gap      = mean_ref - log_wk;
-        let std_ref  = if b > 1.0 {
-            (ref_log_wks.iter()
-                .map(|&x| (x - mean_ref).powi(2))
-                .sum::<f64>()
-                / (b - 1.0)).sqrt()
-        } else {
-            0.0
-        };
-        let se = std_ref * (1.0 + 1.0 / b).sqrt();
-        gap_vals.push((k, gap, se));
+        gap_vals.push((k, gap));
     }
 
     if gap_vals.is_empty() {
         return k_elbow;
     }
 
-    // Tibshirani criterion: smallest k where Gap(k) ≥ Gap(k_next) − SE(k_next).
-    // k_next is the next element in gap_vals (not necessarily k+1 in integers).
-    for i in 0..gap_vals.len().saturating_sub(1) {
-        let (k, gap_k, _)          = gap_vals[i];
-        let (_, gap_next, se_next) = gap_vals[i + 1];
-        if gap_k >= gap_next - se_next {
-            return k;
-        }
+    // Elbow of Gap(k) curve: at k_true, Gap transitions from steeply increasing
+    // to slowly increasing. Argmax Δ²(-Gap) finds this transition.
+    let n = gap_vals.len();
+    if n < 3 {
+        // Too few points — fall back to argmax Gap
+        return gap_vals.iter()
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|&(k, _)| k)
+            .unwrap_or(k_elbow);
     }
 
-    // Fallback: k with maximum Gap(k) when Tibshirani criterion not met.
-    gap_vals.iter()
+    let g_min = gap_vals.iter().map(|&(_, g)| g).fold(f64::INFINITY,     f64::min);
+    let g_max = gap_vals.iter().map(|&(_, g)| g).fold(f64::NEG_INFINITY, f64::max);
+    let g_rng = (g_max - g_min).max(1e-12);
+    let g_norm: Vec<f64> = gap_vals.iter().map(|&(_, g)| (g - g_min) / g_rng).collect();
+
+    // Second difference of -g_norm: Δ²(-g)(i) = -g(i-1) + 2g(i) - g(i+1)
+    // Peaks where -Gap has maximum curvature (the elbow = k_true).
+    let (best_idx, best_d2) = (1..n - 1)
+        .map(|i| (i, -g_norm[i - 1] + 2.0 * g_norm[i] - g_norm[i + 1]))
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-        .map(|&(k, _, _)| k)
-        .unwrap_or(k_elbow)
+        .unwrap_or((n / 2, 0.0));
+
+    if best_d2 < 1e-9 {
+        // No clear elbow (flat curve) — fall back to argmax Gap
+        gap_vals.iter()
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|&(k, _)| k)
+            .unwrap_or(k_elbow)
+    } else {
+        gap_vals[best_idx].0
+    }
 }
 
 #[cfg(test)]
@@ -711,7 +718,7 @@ mod tests {
     #[test]
     fn gap_statistic_two_blobs() {
         // Two tight, well-separated blobs at (0,0) and (10,10).
-        // Tibshirani criterion should pick k=2 (Gap(2) ≥ Gap(3) − SE(3)).
+        // Elbow-of-Gap criterion should pick k=2 (argmax Δ²(-Gap)).
         // The key invariant is that it returns a valid k in the candidate set.
         let mut v = Vec::with_capacity(200);
         for i in 0..50i64 { v.push(i as f64 * 0.01); v.push(i as f64 * 0.01); }
