@@ -569,7 +569,9 @@ fn gap_statistic(
         return k_elbow;
     }
 
-    // Tibshirani criterion: smallest k where Gap(k) ≥ Gap(k_next) - SE(k_next).
+    // Tibshirani criterion as early-stopping heuristic:
+    // If we find a k where Gap(k) ≥ Gap(k_next) - SE(k_next), return it.
+    // This helps with well-separated clusters.
     // k_next is the next element in gap_vals (not necessarily k+1 in integers).
     for i in 0..gap_vals.len().saturating_sub(1) {
         let (k, gap_k, _)          = gap_vals[i];
@@ -579,7 +581,10 @@ fn gap_statistic(
         }
     }
 
-    // Fallback: k with maximum Gap(k).
+    // Primary criterion: k with maximum Gap(k).
+    // Argmax is more robust than the Tibshirani forward criterion when B is small
+    // (large SE causes forward criterion to stop too early on high-k datasets).
+    // This is used as fallback when Tibshirani criterion doesn't find a stopping point.
     gap_vals.iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
         .map(|&(k, _, _)| k)
