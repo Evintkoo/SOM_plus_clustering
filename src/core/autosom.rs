@@ -133,8 +133,9 @@ impl AutoSomBuilder {
 /// Automatic clustering pipeline.
 ///
 /// 1. Train SOM — learn data topology.
-/// 2. Sweep k=2..max_k: cluster neurons with KMeans(k) × N restarts,
-///    map data through BMU, score with combined silhouette + CH on data sample.
+/// 2. k-selection: sweep k=2..max_k on neurons (inertia only),
+///    detect elbow → top-5 candidates, then gap statistic on data
+///    subsample → best_k.
 /// 3. **Run KMeans directly on raw data** with the detected k × N restarts.
 ///    This is the key: SOM is used only for fast k-detection on the neuron
 ///    lattice; the final clustering uses unconstrained KMeans centroids on
@@ -351,7 +352,8 @@ fn build_sample_idx(n: usize, max_samples: usize, labels: &[usize]) -> Vec<usize
     }
     // If under quota, fill remainder randomly from all indices
     if result.len() < max_samples {
-        let mut all: Vec<usize> = (0..n).filter(|i| !result.contains(i)).collect();
+        let already: std::collections::HashSet<usize> = result.iter().copied().collect();
+        let mut all: Vec<usize> = (0..n).filter(|i| !already.contains(i)).collect();
         all.shuffle(&mut rng);
         let extra = (max_samples - result.len()).min(all.len());
         result.extend_from_slice(&all[..extra]);
