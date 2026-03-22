@@ -318,9 +318,8 @@ impl DenSom {
 
         // Adaptive sigma: scale the user's smooth_sigma by the grid's geometric
         // mean side length divided by 2π (the bandwidth-resolution trade-off of a
-        // Gaussian filter on a discrete lattice). This makes smooth_sigma=1.0 mean
-        // "one natural frequency unit of the grid" regardless of grid dimensions,
-        // preserving peak separability across grid sizes.
+        // Gaussian filter on a discrete lattice).
+        let mn = m * n;
         let effective_sigma = self.smooth_sigma
             * (m as f64 * n as f64).sqrt()
             / (2.0 * std::f64::consts::PI);
@@ -334,8 +333,7 @@ impl DenSom {
 
         let max_d = self.smooth_density.iter().cloned().fold(0.0f64, f64::max);
         if max_d == 0.0 {
-            // No data reached any neuron — treat all as one core component.
-            let core_mask = vec![true; m * n];
+            let core_mask = vec![true; mn];
             self.cluster_map = connected_components(&core_mask, m, n);
             self.n_clusters = 1;
             return;
@@ -350,16 +348,12 @@ impl DenSom {
             .sqrt();
 
         let core_mask: Vec<bool> = if std_dev < 1e-9 {
-            // Flat density — all core; connected_components gives 1 cluster.
-            vec![true; m * n]
+            vec![true; mn]
         } else {
             let tau = otsu(&vals);
             vals.iter().map(|&v| v >= tau).collect()
         };
 
-        // Watershed extracts one cluster per density peak inside the core region,
-        // partitioning by basin of attraction. Connected_components is only used
-        // for the flat-density edge case where every neuron is equally core.
         self.cluster_map = if std_dev < 1e-9 {
             connected_components(&core_mask, m, n)
         } else {

@@ -11,8 +11,8 @@ pub use core::densom::{DenSom, DenSomBuilder, DenSomResult};
 pub use core::distance::DistanceFunction;
 pub use core::evals::bcubed_scores;
 pub use core::evals::{
-    calinski_harabasz_score, davies_bouldin_index, dunn_index, silhouette_score, ClassEvalMethod,
-    EvalMethod,
+    calinski_harabasz_score, davies_bouldin_index, dbcv_score, dunn_index,
+    knn_consistency_score, silhouette_score, ClassEvalMethod, EvalMethod,
 };
 pub use core::kmeans::{KMeans, KMeansBuilder, KMeansInit};
 pub use core::model_picker::{ModelPicker, PickerConfig};

@@ -228,6 +228,237 @@ pub fn dunn_index(data: &ArrayView2<f64>, labels: &ArrayView1<usize>) -> Result<
     Ok(min_inter / max_intra)
 }
 
+/// Density-Based Clustering Validation (DBCV).
+///
+/// Evaluates clustering quality by comparing within-cluster density
+/// (sparseness) against between-cluster density separation, using mutual
+/// reachability distances.  Unlike CH or silhouette, DBCV correctly
+/// handles non-convex / non-globular clusters (rings, spirals, etc.)
+/// because it measures density connectivity rather than centroid separation.
+///
+/// Based on Moulavi et al. (2014), "Density-Based Clustering Validation."
+///
+/// Returns a score in \[-1, 1\] where higher is better.  Complexity: O(n²).
+pub fn dbcv_score(
+    data: &ArrayView2<f64>,
+    labels: &ArrayView1<usize>,
+    core_k: usize,
+) -> Result<f64, SomError> {
+    let n = data.nrows();
+    if n < 2 || core_k == 0 {
+        return Ok(0.0);
+    }
+    let core_k = core_k.min(n - 1);
+
+    let unique: Vec<usize> = {
+        let mut v = labels.to_vec();
+        v.sort();
+        v.dedup();
+        v
+    };
+    if unique.len() <= 1 {
+        return Ok(0.0);
+    }
+
+    // Step 1: Pairwise Euclidean distances.
+    let dists = pairwise_distances(data);
+
+    // Step 2: Core distances (distance to core_k-th nearest neighbour).
+    let mut core_dist = vec![0.0f64; n];
+    let mut row_dists = vec![0.0f64; n];
+    for i in 0..n {
+        for j in 0..n {
+            row_dists[j] = dists[[i, j]];
+        }
+        row_dists.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        // row_dists[0] == 0 (self), so k-th neighbour is row_dists[core_k].
+        core_dist[i] = row_dists[core_k.min(n - 1)];
+    }
+
+    // Mutual reachability distance (computed on demand via closure).
+    let mr = |i: usize, j: usize| -> f64 {
+        core_dist[i].max(core_dist[j]).max(dists[[i, j]])
+    };
+
+    // Step 3: For each cluster, build MST via Prim's on mutual reachability,
+    //         track max edge (density sparseness = DSC).
+    let mut dsc: Vec<f64> = Vec::with_capacity(unique.len());
+    for &label in &unique {
+        let members: Vec<usize> = (0..n).filter(|&i| labels[i] == label).collect();
+        if members.len() <= 1 {
+            dsc.push(0.0);
+            continue;
+        }
+        // Prim's MST — dense graph, O(|C|²).
+        let m = members.len();
+        let mut in_tree = vec![false; m];
+        let mut min_edge = vec![f64::INFINITY; m];
+        min_edge[0] = 0.0;
+        let mut max_mst_edge = 0.0f64;
+
+        for _ in 0..m {
+            // Pick the not-in-tree vertex with smallest edge.
+            let u = (0..m)
+                .filter(|&v| !in_tree[v])
+                .min_by(|&a, &b| min_edge[a].partial_cmp(&min_edge[b]).unwrap_or(std::cmp::Ordering::Equal))
+                .unwrap();
+            in_tree[u] = true;
+            if min_edge[u] > max_mst_edge && min_edge[u].is_finite() {
+                max_mst_edge = min_edge[u];
+            }
+            // Update neighbours.
+            for v in 0..m {
+                if !in_tree[v] {
+                    let w = mr(members[u], members[v]);
+                    if w < min_edge[v] {
+                        min_edge[v] = w;
+                    }
+                }
+            }
+        }
+        dsc.push(max_mst_edge);
+    }
+
+    // Step 4: For each pair of clusters, compute density separation
+    //         (min mutual reachability distance between them).
+    let k_c = unique.len();
+    let mut dspc = vec![vec![f64::INFINITY; k_c]; k_c];
+    for ci in 0..k_c {
+        let members_i: Vec<usize> = (0..n).filter(|&x| labels[x] == unique[ci]).collect();
+        for cj in (ci + 1)..k_c {
+            let members_j: Vec<usize> = (0..n).filter(|&x| labels[x] == unique[cj]).collect();
+            let mut min_mr = f64::INFINITY;
+            for &a in &members_i {
+                for &b in &members_j {
+                    let d = mr(a, b);
+                    if d < min_mr {
+                        min_mr = d;
+                    }
+                }
+            }
+            dspc[ci][cj] = min_mr;
+            dspc[cj][ci] = min_mr;
+        }
+    }
+
+    // Step 5: Per-cluster validity and weighted average.
+    let mut total = 0.0f64;
+    let mut total_weight = 0.0f64;
+    for ci in 0..k_c {
+        let n_c = (0..n).filter(|&x| labels[x] == unique[ci]).count() as f64;
+        // Minimum density separation to any other cluster.
+        let sep = (0..k_c)
+            .filter(|&cj| cj != ci)
+            .map(|cj| dspc[ci][cj])
+            .fold(f64::INFINITY, f64::min);
+
+        let spar = dsc[ci];
+        let denom = sep.max(spar);
+        let v_c = if denom < 1e-12 { 0.0 } else { (sep - spar) / denom };
+        total += n_c * v_c;
+        total_weight += n_c;
+    }
+
+    if total_weight < 1e-12 {
+        return Ok(0.0);
+    }
+    Ok(total / total_weight)
+}
+
+/// Topology-aware cluster quality metric based on k-nearest-neighbour label
+/// consistency.
+///
+/// For each point, computes the fraction of its `k` nearest neighbours (in
+/// Euclidean distance) that share the same cluster label, then averages
+/// across all points.  The raw score is **adjusted for chance**: a single
+/// cluster trivially scores 1.0, so we subtract the expected score under
+/// random (proportional) assignment and normalise to [0, 1].
+///
+/// **Why this metric?** Standard metrics (silhouette, CH, DB) assume convex
+/// / globular clusters.  For non-convex data like concentric rings or
+/// spirals, they favour KMeans over density-based methods even when the
+/// latter produces a better partition.  k-NN consistency captures *local*
+/// neighbourhood preservation: a good clustering keeps nearby points
+/// together regardless of global cluster shape.
+///
+/// Complexity: O(n²) — same as silhouette (pairwise distance computation).
+///
+/// Returns `Ok(score)` in [0, 1] where higher is better, or 0.0 for
+/// degenerate inputs (single cluster, n < 2, etc.).
+pub fn knn_consistency_score(
+    data: &ArrayView2<f64>,
+    labels: &ArrayView1<usize>,
+    k: usize,
+) -> Result<f64, SomError> {
+    let n = data.nrows();
+    if n < 2 || k == 0 {
+        return Ok(0.0);
+    }
+    let k = k.min(n - 1);
+
+    // Unique labels and their sizes (for chance correction).
+    let unique: Vec<usize> = {
+        let mut v = labels.to_vec();
+        v.sort();
+        v.dedup();
+        v
+    };
+    if unique.len() <= 1 {
+        return Ok(0.0); // single cluster → trivially perfect, adjusted = 0
+    }
+
+    // Herfindahl index: expected consistency under random proportional assignment.
+    let expected: f64 = unique
+        .iter()
+        .map(|&l| {
+            let cnt = labels.iter().filter(|&&x| x == l).count() as f64;
+            (cnt / n as f64).powi(2)
+        })
+        .sum();
+
+    // Pairwise Euclidean distances (flat vec for cache-friendliness).
+    let mut dists = vec![0.0f64; n * n];
+    for i in 0..n {
+        let ri = data.row(i);
+        for j in (i + 1)..n {
+            let d = (&ri - &data.row(j)).mapv(|x| x * x).sum().sqrt();
+            dists[i * n + j] = d;
+            dists[j * n + i] = d;
+        }
+    }
+
+    // For each point, find k-NN same-label fraction.
+    let mut total_consistency = 0.0f64;
+    let mut indices: Vec<usize> = (0..n).collect();
+    for i in 0..n {
+        // Partial sort by distance to point i.
+        indices.iter_mut().enumerate().for_each(|(idx, v)| *v = idx);
+        indices.sort_unstable_by(|&a, &b| {
+            dists[i * n + a]
+                .partial_cmp(&dists[i * n + b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let same = indices
+            .iter()
+            .filter(|&&j| j != i)
+            .take(k)
+            .filter(|&&j| labels[j] == labels[i])
+            .count();
+
+        total_consistency += same as f64 / k as f64;
+    }
+
+    let observed = total_consistency / n as f64;
+
+    // Adjusted = (observed − expected) / (1 − expected), clamped to [0, 1].
+    let denom = 1.0 - expected;
+    if denom < 1e-12 {
+        return Ok(0.0);
+    }
+    Ok(((observed - expected) / denom).clamp(0.0, 1.0))
+}
+
 pub fn bcubed_scores(clusters: &ArrayView1<usize>, labels: &ArrayView1<usize>) -> (f64, f64) {
     let n = clusters.len();
     if n == 0 {
@@ -322,6 +553,29 @@ mod tests {
         let l = ndarray::Array1::from_iter((0..10).map(|i| i % 2));
         // Either Ok or Err(ZeroWithinClusterVariance) — just must not panic
         let _ = calinski_harabasz_score(&d.view(), &l.view());
+    }
+
+    #[test]
+    fn knn_consistency_high_for_separated() {
+        let (d, l) = perfect_clusters();
+        let score = knn_consistency_score(&d.view(), &l.view(), 5).unwrap();
+        assert!(
+            score > 0.5,
+            "expected high knn_consistency for separated clusters, got {}",
+            score
+        );
+    }
+
+    #[test]
+    fn knn_consistency_single_cluster_zero() {
+        let d = Array2::from_shape_fn((10, 2), |(i, j)| i as f64 + j as f64 * 0.1);
+        let l = ndarray::Array1::zeros(10);
+        let score = knn_consistency_score(&d.view(), &l.view(), 3).unwrap();
+        assert!(
+            score.abs() < 1e-6,
+            "single cluster should give adjusted score 0, got {}",
+            score
+        );
     }
 
     #[test]
