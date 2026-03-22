@@ -2,7 +2,7 @@ use crate::{
     core::{
         densom::DenSom,
         distance::DistanceFunction,
-        evals::{calinski_harabasz_score, silhouette_score},
+        evals::silhouette_score,
         kmeans::{KMeansBuilder, KMeansInit},
         som::{InitMethod, SomBuilder},
         SigmaMethod,
@@ -146,7 +146,6 @@ pub struct AutoSom {
 }
 
 const SIL_SAMPLE: usize = 2000;
-const N_RESTARTS: usize = 3;
 /// Number of KMeans restarts on the raw data for the final clustering.
 const FINAL_RESTARTS: usize = 5;
 
@@ -177,92 +176,54 @@ impl AutoSom {
         };
         som.fit(data, epochs, shuffle, batch_size)?;
 
-        let bmu_labels = som.predict(data)?;
+        let bmu_indices = som.predict(data)?;
         let neurons = som.neurons().clone();
-
-        // Build sample for silhouette/CH evaluation on actual data.
-        let sample_idx = build_sample_idx(data.nrows(), SIL_SAMPLE);
-        let sample_data = subset_rows(data, &sample_idx);
+        let n = data.nrows();
 
         // ------------------------------------------------------------------ //
-        // Step 2: Silhouette + CH sweep on data, KMeans on neurons            //
+        // Stage 2: Two-stage k-selection                                      //
         // ------------------------------------------------------------------ //
-        let mn = c.som_m * c.som_n;
-        let max_k = (mn / 2).clamp(2, 50);
-
-        // Collect (sil, ch) for each k to normalize and combine.
-        let mut k_scores: Vec<(usize, f64, f64)> = Vec::new();
-
+        // 2a. KMeans on neurons — inertia sweep only (no silhouette/CH)
+        let max_k = (c.som_m * c.som_n / 2).clamp(2, 50);
+        let mut inertias: Vec<(usize, f64)> = Vec::new();
         for k in 2..=max_k {
-            // Multiple restarts: pick the one with best inertia on neurons.
-            let mut best_neuron_clusters: Option<Array1<usize>> = None;
-            let mut best_inertia = f64::INFINITY;
-
-            for _ in 0..N_RESTARTS {
-                let mut km = KMeansBuilder::new()
-                    .n_clusters(k)
-                    .method(KMeansInit::PlusPlus)
-                    .max_iters(100)
-                    .build();
-                if km.fit(&neurons.view()).is_err() {
-                    continue;
+            let mut km = KMeansBuilder::new()
+                .n_clusters(k)
+                .method(KMeansInit::PlusPlus)
+                .max_iters(100)
+                .build();
+            if km.fit(&neurons.view()).is_ok() {
+                if let Ok(w) = km.inertia() {
+                    inertias.push((k, w));
                 }
-                let inertia = km.inertia().unwrap_or(f64::INFINITY);
-                if inertia < best_inertia {
-                    best_inertia = inertia;
-                    best_neuron_clusters = km.predict(&neurons.view()).ok();
-                }
-            }
-
-            let neuron_clusters = match best_neuron_clusters {
-                Some(nc) => nc,
-                None => continue,
-            };
-
-            let sample_labels = Array1::from_shape_fn(sample_idx.len(), |i| {
-                neuron_clusters[bmu_labels[sample_idx[i]]]
-            });
-
-            let sil = silhouette_score(&sample_data.view(), &sample_labels.view())
-                .unwrap_or(f64::NAN);
-            let ch = calinski_harabasz_score(&sample_data.view(), &sample_labels.view())
-                .unwrap_or(f64::NAN);
-
-            if sil.is_finite() && ch.is_finite() {
-                k_scores.push((k, sil, ch));
             }
         }
 
-        // Find best k using combined normalized score.
-        // Silhouette: higher = better (-1 to 1 range, use directly).
-        // CH: higher = better, normalize to 0..1 via min-max.
-        let best_k = if k_scores.is_empty() {
-            2
-        } else {
-            let ch_min = k_scores.iter().map(|s| s.2).fold(f64::INFINITY, f64::min);
-            let ch_max = k_scores.iter().map(|s| s.2).fold(f64::NEG_INFINITY, f64::max);
-            let ch_range = (ch_max - ch_min).max(1e-12);
+        // 2b. Elbow detection → top-5 candidates
+        let (k_elbow, candidates) = elbow_candidates(&inertias, max_k);
 
-            let sil_min = k_scores.iter().map(|s| s.1).fold(f64::INFINITY, f64::min);
-            let sil_max = k_scores.iter().map(|s| s.1).fold(f64::NEG_INFINITY, f64::max);
-            let sil_range = (sil_max - sil_min).max(1e-12);
-
-            // Combined = normalized_sil + 0.5 * normalized_ch
-            // CH weighted less because it can be noisy, but it helps break ties
-            // and favors the correct k for Gaussian mixtures.
-            let mut best_score = f64::NEG_INFINITY;
-            let mut bk = 2;
-            for &(k, sil, ch) in &k_scores {
-                let norm_sil = (sil - sil_min) / sil_range;
-                let norm_ch = (ch - ch_min) / ch_range;
-                let combined = norm_sil + 0.5 * norm_ch;
-                if combined > best_score {
-                    best_score = combined;
-                    bk = k;
-                }
+        // 2c. Gap statistic on subsample → best_k
+        // Build initial sample using KMeans-on-neurons labels for stratification
+        let neuron_labels: Vec<usize> = {
+            let mut km = KMeansBuilder::new()
+                .n_clusters(k_elbow.max(2))
+                .method(KMeansInit::PlusPlus)
+                .max_iters(100)
+                .build();
+            if km.fit(&neurons.view()).is_ok() {
+                let neuron_clusters = km.predict(&neurons.view())
+                    .unwrap_or_else(|_| Array1::zeros(neurons.nrows()));
+                bmu_indices.iter()
+                    .map(|&b| neuron_clusters[b])
+                    .collect()
+            } else {
+                vec![0usize; n]
             }
-            bk
         };
+        let sample_idx = build_sample_idx(n, SIL_SAMPLE, &neuron_labels);
+        let sample_data = subset_rows(data, &sample_idx);
+
+        let best_k = gap_statistic(&sample_data.view(), &candidates, c.gap_n_refs, k_elbow);
 
         // ------------------------------------------------------------------ //
         // Step 3: Run KMeans directly on raw data with best_k                 //
@@ -363,12 +324,40 @@ impl AutoSom {
     }
 }
 
-fn build_sample_idx(n: usize, max_n: usize) -> Vec<usize> {
-    if n <= max_n {
+/// Returns up to `max_samples` row indices from `data`, using stratified random sampling
+/// based on `labels` (one draw per cluster) to reduce bias.
+/// Falls back to uniform random if labels has 0 unique values.
+fn build_sample_idx(n: usize, max_samples: usize, labels: &[usize]) -> Vec<usize> {
+    use rand::seq::SliceRandom;
+    if n <= max_samples {
         return (0..n).collect();
     }
-    let step = n / max_n;
-    (0..n).step_by(step).take(max_n).collect()
+    // Group indices by label
+    let k = labels.iter().copied().max().map(|m| m + 1).unwrap_or(1);
+    let mut buckets: Vec<Vec<usize>> = vec![Vec::new(); k];
+    for (i, &lbl) in labels.iter().enumerate() {
+        if lbl < k {
+            buckets[lbl].push(i);
+        }
+    }
+    // Allocate quota per bucket proportionally
+    let mut rng = StdRng::seed_from_u64(n as u64);
+    let mut result = Vec::with_capacity(max_samples);
+    let per_bucket = (max_samples / k).max(1);
+    for bucket in &mut buckets {
+        bucket.shuffle(&mut rng);
+        let take = per_bucket.min(bucket.len());
+        result.extend_from_slice(&bucket[..take]);
+    }
+    // If under quota, fill remainder randomly from all indices
+    if result.len() < max_samples {
+        let mut all: Vec<usize> = (0..n).filter(|i| !result.contains(i)).collect();
+        all.shuffle(&mut rng);
+        let extra = (max_samples - result.len()).min(all.len());
+        result.extend_from_slice(&all[..extra]);
+    }
+    result.sort_unstable();
+    result
 }
 
 fn subset_rows(data: &ArrayView2<f64>, idx: &[usize]) -> Array2<f64> {
