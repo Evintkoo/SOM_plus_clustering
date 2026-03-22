@@ -94,19 +94,21 @@ fn run_som(data: &Array2<f64>, m: usize, n: usize, k: usize, epochs: usize) -> (
         .learning_rate(0.5)
         .expect("valid lr")
         .neighbor_radius(3.0)
-        .init_method(InitMethod::Random)
+        .init_method(InitMethod::SomPlusPlus)
         .distance(DistanceFunction::Euclidean)
         .build();
 
     let t0 = Instant::now();
-    som.fit(&data.view(), epochs, true, None)
+    // shuffle=false: deterministic training order so predict_clustered_refined
+    // produces fully reproducible results across benchmark runs.
+    som.fit(&data.view(), epochs, false, None)
         .expect("SOM fit failed");
     let fit_s = t0.elapsed().as_secs_f64();
 
     let t0 = Instant::now();
-    // Two-phase SOM clustering: cluster neurons with KMeans(k), map data through BMU
-    let labels = som.predict_clustered(&data.view(), k)
-        .expect("SOM predict_clustered failed");
+    // SOM-TSK: cluster neurons → hit-count-weighted centroids → KMeans on raw data
+    let labels = som.predict_clustered_refined(&data.view(), k)
+        .expect("SOM predict_clustered_refined failed");
     let predict_s = t0.elapsed().as_secs_f64();
 
     let (sil, db, ch, dunn) = compute_metrics(data, &labels);
