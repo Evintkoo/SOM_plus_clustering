@@ -9,3 +9,12 @@ pub mod som;
 pub mod som_classification;
 pub mod autosom;
 pub mod densom;
+
+/// Bandwidth selection rule for DenSOM's adaptive Gaussian smoothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SigmaMethod {
+    /// Silverman's rule (robust to outliers via IQR). Default.
+    Silverman,
+    /// Scott's rule (`n^(-1/(d+4)) * σ_data`).
+    Scott,
+}
