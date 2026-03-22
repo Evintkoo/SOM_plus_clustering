@@ -200,8 +200,8 @@ impl AutoSom {
             }
         }
 
-        // 2b. Elbow detection → top-5 candidates
-        let (k_elbow, candidates) = elbow_candidates(&inertias, max_k);
+        // 2b. Elbow detection → k_elbow used as fallback in gap statistic
+        let (k_elbow, _) = elbow_candidates(&inertias, max_k);
 
         // 2c. Gap statistic on subsample → best_k
         // Build initial sample using KMeans-on-neurons labels for stratification
@@ -224,7 +224,8 @@ impl AutoSom {
         let sample_idx = build_sample_idx(n, SIL_SAMPLE, &neuron_labels);
         let sample_data = subset_rows(data, &sample_idx);
 
-        let best_k = gap_statistic(&sample_data.view(), &candidates, c.gap_n_refs, k_elbow);
+        let all_candidates: Vec<usize> = (2..=max_k).collect();
+        let best_k = gap_statistic(&sample_data.view(), &all_candidates, c.gap_n_refs, k_elbow);
 
         // ------------------------------------------------------------------ //
         // Step 3: Run KMeans directly on raw data with best_k                 //
