@@ -265,11 +265,55 @@ impl DenSom {
             if max_id < 0 { 0 } else { (max_id + 1) as usize }
         };
     }
+
+    pub fn fit(
+        &mut self,
+        data: &ArrayView2<f64>,
+        epoch: usize,
+        shuffle: bool,
+        batch_size: Option<usize>,
+    ) -> Result<(), SomError> {
+        if data.nrows() < 2 {
+            return Err(SomError::InsufficientData { n: data.nrows() });
+        }
+        // Reset hit counts for this training run
+        self.bmu_hits.fill(0);
+        self.som.fit(data, epoch, shuffle, batch_size)?;
+        // Count BMU hits from final trained weights
+        let bmu_labels = self.som.predict(data)?;
+        for &b in bmu_labels.iter() {
+            self.bmu_hits[b] += 1;
+        }
+        self.finalize();
+        self.fitted = true;
+        Ok(())
+    }
+
+    pub fn refit_density(&mut self, data: &ArrayView2<f64>) -> Result<(), SomError> {
+        if data.ncols() != self.som.dim {
+            return Err(SomError::DimensionMismatch {
+                expected: self.som.dim,
+                got: data.ncols(),
+            });
+        }
+        if data.nrows() < 2 {
+            return Err(SomError::InsufficientData { n: data.nrows() });
+        }
+        self.bmu_hits.fill(0);
+        let bmu_labels = self.som.predict(data)?;
+        for &b in bmu_labels.iter() {
+            self.bmu_hits[b] += 1;
+        }
+        self.finalize();
+        self.fitted = true;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ndarray::Array2;
 
     #[test]
     fn from_som_is_fitted() {
@@ -371,5 +415,48 @@ mod tests {
         let smooth = smooth_hits(&hits, 3, 3, 1.0);
         let max_d = smooth.iter().cloned().fold(0.0f64, f64::max);
         assert_eq!(max_d, 0.0, "all-zero hits → max density must be 0.0");
+    }
+
+    #[test]
+    fn fit_populates_clusters() {
+        // Two tight blobs: 20 pts near (0,0) and 20 pts near (5,5)
+        let mut data_vec: Vec<f64> = Vec::new();
+        for i in 0..20 {
+            data_vec.push(i as f64 * 0.01);
+            data_vec.push(i as f64 * 0.01);
+        }
+        for i in 0..20 {
+            data_vec.push(5.0 + i as f64 * 0.01);
+            data_vec.push(5.0 + i as f64 * 0.01);
+        }
+        let data = Array2::from_shape_vec((40, 2), data_vec).unwrap();
+        let mut densom = DenSomBuilder::new()
+            .grid(5, 5)
+            .dim(2)
+            .build();
+        densom.fit(&data.view(), 5, false, None).unwrap();
+        assert!(densom.fitted);
+        assert!(densom.n_clusters >= 1, "should find at least 1 cluster");
+        assert!(densom.bmu_hits.iter().sum::<usize>() == 40,
+                "all 40 points must be accounted for in bmu_hits");
+    }
+
+    #[test]
+    fn refit_density_dimension_mismatch() {
+        use crate::core::som::SomBuilder;
+        let som = SomBuilder::new().grid(3, 3).dim(2).build();
+        let mut densom = DenSom::from_som(som);
+        // data with dim=3 should fail
+        let bad_data = Array2::<f64>::zeros((10, 3));
+        let result = densom.refit_density(&bad_data.view());
+        assert!(matches!(result, Err(SomError::DimensionMismatch { .. })));
+    }
+
+    #[test]
+    fn fit_insufficient_data_error() {
+        let data = Array2::<f64>::zeros((1, 2)); // only 1 point
+        let mut densom = DenSomBuilder::new().grid(3, 3).dim(2).build();
+        let result = densom.fit(&data.view(), 1, false, None);
+        assert!(matches!(result, Err(SomError::InsufficientData { .. })));
     }
 }
