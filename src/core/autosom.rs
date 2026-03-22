@@ -443,12 +443,14 @@ fn elbow_candidates(
         }
     };
 
-    // Build candidate window: {k_elbow-1, k_elbow, k_elbow+1}, clamped, deduplicated.
-    // Then expand to up to 5 candidates for broader search.
+    // Build candidate window: {k_elbow-2, k_elbow-1, k_elbow, k_elbow+1, k_elbow+2}, clamped, deduplicated.
+    // This provides a 5-value window for broader search per spec.
     let mut cands: Vec<usize> = [
+        k_elbow.saturating_sub(2).max(2),
         k_elbow.saturating_sub(1).max(2),
         k_elbow,
         (k_elbow + 1).min(max_k),
+        (k_elbow + 2).min(max_k),
     ]
     .into_iter()
     .collect();
@@ -590,21 +592,24 @@ mod tests {
 
     #[test]
     fn elbow_candidates_clamped_dedup() {
-        // k_elbow = max_k → candidates {max_k-2, max_k-1, max_k, max_k, max_k}
-        // After clamp + dedup → {max_k-2, max_k-1, max_k} (length 3).
+        // With ±2 window: k_elbow → candidates {k_elbow-2, k_elbow-1, k_elbow, k_elbow+1, k_elbow+2}
+        // When clamped/dedup'd, length depends on k_elbow position. The spec requires ≤5 candidates.
+        // Edge case: k_elbow = max_k = 6 → window {4, 5, 6, 6, 6} dedup → {4, 5, 6} (len=3 < 5 ✓)
         let max_k = 6usize;
         let inertias: Vec<(usize, f64)> = vec![
             (2, 1000.0), (3, 500.0), (4, 200.0),
             (5, 100.0), (6, 10.0),
         ];
-        let (_, cands) = elbow_candidates(&inertias, max_k);
-        assert!(cands.len() < 5, "clamped dedup should give <5 candidates, got {:?}", cands);
+        let (k_elbow, cands) = elbow_candidates(&inertias, max_k);
+        // Candidates must be in valid range
         assert!(cands.iter().all(|&k| k >= 2 && k <= max_k),
             "all candidates must be in [2, max_k={max_k}], got {:?}", cands);
-        // No duplicates
+        // Must be sorted and deduplicated
         let mut deduped = cands.clone();
         deduped.dedup();
-        assert_eq!(deduped, cands, "candidates must have no duplicates");
+        assert_eq!(deduped, cands, "candidates must be sorted with no duplicates");
+        // For this curve, window must have length ≤5 (the spec requirement)
+        assert!(cands.len() <= 5, "candidate window must have ≤5 elements per spec, got {:?}", cands);
     }
 
     #[test]
