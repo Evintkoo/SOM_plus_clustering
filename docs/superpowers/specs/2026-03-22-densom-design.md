@@ -25,10 +25,15 @@ DenSOM extends the existing `Som` to:
 DenSOM runs in five sequential stages after (or during) SOM training:
 
 ### Stage 1 — Train
-Standard SOM weight updates via `Som::fit`. During training, an auxiliary
-counter `bmu_hits: Array1<usize>` of length `m × n` is **reset to zero at the
-start of every `fit` call** and then incremented each time neuron `i` wins a
-BMU competition during that call. `DenSom::fit` is **re-entrant** (matching
+Standard SOM weight updates via `Som::fit`. `bmu_hits: Array1<usize>` of
+length `m × n` is **reset to zero at the start of every `fit` call**.
+
+**Implementation amendment:** Rather than counting hits during training (which
+would require modifying `Som::fit`'s internal loop), hits are computed via a
+single `Som::predict(data)` call on the *final trained weights* after `fit`
+completes. This is equivalent for density estimation — it reflects which
+neurons "own" each point in the converged map — and produces a cleaner density
+signal than mid-training counts biased toward initial weights. `DenSom::fit` is **re-entrant** (matching
 `Som` behaviour): calling it a second time continues training on the existing
 weights, but resets `bmu_hits` so the density map reflects only the most recent
 training run. `AlreadyFitted` is never returned.
