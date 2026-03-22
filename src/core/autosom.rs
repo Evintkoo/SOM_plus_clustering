@@ -479,18 +479,16 @@ fn compute_adaptive_sigma(
     h.clamp(0.5, grid_side / 2.0)
 }
 
-/// Gap statistic for k selection using elbow-of-Gap curve.
+/// Gap statistic for k selection using argmax Gap(k).
 ///
 /// For each candidate k (sorted ascending), computes:
 ///   Gap(k) = E[log W_k^ref] - log W_k
 ///
-/// where W_k^ref is within-cluster dispersion on `n_refs` diagonal Gaussian
-/// reference datasets (Method B: per-dimension mean and std matching the data).
+/// where W_k^ref is within-cluster dispersion on `n_refs` uniform reference
+/// datasets sampled in the per-dimension bounding box.
 ///
-/// Selects k at the elbow of Gap(k) via argmax Δ²(-Gap), i.e. the point where
-/// Gap transitions from steeply increasing to slowly increasing (= k_true).
-/// Falls back to argmax Gap(k) if the curve has fewer than 3 points or is flat,
-/// or to `k_elbow` if all fits fail.
+/// Selects k = argmax Gap(k) — the value with the highest Gap.
+/// Falls back to `k_elbow` if all fits fail.
 fn gap_statistic(
     sample_data: &ArrayView2<f64>,
     candidates:  &[usize],
@@ -500,18 +498,16 @@ fn gap_statistic(
     let n = sample_data.nrows();
     let d = sample_data.ncols();
 
-    // Gaussian reference statistics (Tibshirani et al. 2001, Method B):
-    // per-dimension mean and std for diagonal Gaussian null hypothesis.
-    let means: Vec<f64> = (0..d).map(|j| {
-        sample_data.column(j).iter().sum::<f64>() / n as f64
-    }).collect();
-    let stds: Vec<f64> = (0..d).map(|j| {
-        let m = means[j];
-        let var = sample_data.column(j).iter()
-            .map(|&x| (x - m).powi(2))
-            .sum::<f64>() / n as f64;
-        var.sqrt().max(1e-12)
-    }).collect();
+    // Per-dimension bounding box
+    let mut col_min = vec![f64::INFINITY;     d];
+    let mut col_max = vec![f64::NEG_INFINITY; d];
+    for j in 0..d {
+        for i in 0..n {
+            let v = sample_data[[i, j]];
+            if v < col_min[j] { col_min[j] = v; }
+            if v > col_max[j] { col_max[j] = v; }
+        }
+    }
 
     // Per-call seed derived from sample size for reproducibility.
     let base_seed = n as u64;
@@ -530,17 +526,16 @@ fn gap_statistic(
         let wk = km.inertia().unwrap_or(0.0);
         let log_wk = if wk > 0.0 { wk.ln() } else { continue; };
 
-        // Inertia on n_refs diagonal Gaussian reference datasets.
+        // Inertia on n_refs uniform reference datasets in the bounding box.
         let mut ref_log_wks: Vec<f64> = Vec::with_capacity(n_refs);
         let mut rng = StdRng::seed_from_u64(base_seed.wrapping_add(k as u64));
 
         for _ in 0..n_refs {
             let ref_data = Array2::from_shape_fn((n, d), |(_i, j)| {
-                // Box-Muller: two uniform samples → one standard normal
-                let u1 = rng.random::<f64>().max(1e-300);
-                let u2 = rng.random::<f64>();
-                let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
-                means[j] + stds[j] * z
+                let lo = col_min[j];
+                let hi = col_max[j];
+                if (hi - lo).abs() < 1e-12 { lo }
+                else { lo + rng.random::<f64>() * (hi - lo) }
             });
             let mut km_ref = KMeansBuilder::new()
                 .n_clusters(k)
@@ -564,38 +559,11 @@ fn gap_statistic(
         return k_elbow;
     }
 
-    // Elbow of Gap(k) curve: at k_true, Gap transitions from steeply increasing
-    // to slowly increasing. Argmax Δ²(-Gap) finds this transition.
-    let n = gap_vals.len();
-    if n < 3 {
-        // Too few points — fall back to argmax Gap
-        return gap_vals.iter()
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|&(k, _)| k)
-            .unwrap_or(k_elbow);
-    }
-
-    let g_min = gap_vals.iter().map(|&(_, g)| g).fold(f64::INFINITY,     f64::min);
-    let g_max = gap_vals.iter().map(|&(_, g)| g).fold(f64::NEG_INFINITY, f64::max);
-    let g_rng = (g_max - g_min).max(1e-12);
-    let g_norm: Vec<f64> = gap_vals.iter().map(|&(_, g)| (g - g_min) / g_rng).collect();
-
-    // Second difference of -g_norm: Δ²(-g)(i) = -g(i-1) + 2g(i) - g(i+1)
-    // Peaks where -Gap has maximum curvature (the elbow = k_true).
-    let (best_idx, best_d2) = (1..n - 1)
-        .map(|i| (i, -g_norm[i - 1] + 2.0 * g_norm[i] - g_norm[i + 1]))
+    // Return argmax Gap(k)
+    gap_vals.iter()
         .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-        .unwrap_or((n / 2, 0.0));
-
-    if best_d2 < 1e-9 {
-        // No clear elbow (flat curve) — fall back to argmax Gap
-        gap_vals.iter()
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|&(k, _)| k)
-            .unwrap_or(k_elbow)
-    } else {
-        gap_vals[best_idx].0
-    }
+        .map(|&(k, _)| k)
+        .unwrap_or(k_elbow)
 }
 
 #[cfg(test)]

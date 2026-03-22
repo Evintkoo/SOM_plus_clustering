@@ -126,6 +126,7 @@ impl SomBuilder {
     }
 }
 
+#[derive(Clone)]
 pub struct Som {
     pub m: usize,
     pub n: usize,
@@ -317,6 +318,35 @@ impl Som {
 
     pub fn cluster_centers(&self) -> Array2<f64> {
         self.neurons.clone()
+    }
+
+    /// Returns a read-only view of the neuron weight matrix `[m*n, dim]`.
+    pub fn neurons(&self) -> &Array2<f64> {
+        &self.neurons
+    }
+
+    /// Two-phase SOM clustering: cluster the neuron weight vectors with
+    /// KMeans(k), then map each data point through its BMU to the neuron's
+    /// cluster label.  This produces exactly `k` clusters instead of `m*n`
+    /// neuron indices.
+    pub fn predict_clustered(
+        &self,
+        data: &ArrayView2<f64>,
+        k: usize,
+    ) -> Result<Array1<usize>, SomError> {
+        if !self.trained {
+            return Err(SomError::NotFitted("predict_clustered"));
+        }
+        let mut km = KMeansBuilder::new()
+            .n_clusters(k)
+            .method(KMeansInit::PlusPlus)
+            .max_iters(300)
+            .build();
+        km.fit(&self.neurons.view())?;
+        let neuron_clusters = km.predict(&self.neurons.view())?;
+
+        let bmu_labels = self.predict(data)?;
+        Ok(bmu_labels.mapv(|bmu| neuron_clusters[bmu]))
     }
 
     pub fn evaluate(

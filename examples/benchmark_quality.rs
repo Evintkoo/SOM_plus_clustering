@@ -86,7 +86,7 @@ fn compute_metrics(data: &Array2<f64>, labels: &ndarray::Array1<usize>) -> (f64,
     (sil, db, ch, dunn)
 }
 
-fn run_som(data: &Array2<f64>, m: usize, n: usize, epochs: usize) -> (Vec<usize>, String) {
+fn run_som(data: &Array2<f64>, m: usize, n: usize, k: usize, epochs: usize) -> (Vec<usize>, String) {
     let dim = data.ncols();
     let mut som = SomBuilder::new()
         .grid(m, n)
@@ -104,7 +104,9 @@ fn run_som(data: &Array2<f64>, m: usize, n: usize, epochs: usize) -> (Vec<usize>
     let fit_s = t0.elapsed().as_secs_f64();
 
     let t0 = Instant::now();
-    let labels = som.predict(&data.view()).expect("SOM predict failed");
+    // Two-phase SOM clustering: cluster neurons with KMeans(k), map data through BMU
+    let labels = som.predict_clustered(&data.view(), k)
+        .expect("SOM predict_clustered failed");
     let predict_s = t0.elapsed().as_secs_f64();
 
     let (sil, db, ch, dunn) = compute_metrics(data, &labels);
@@ -267,8 +269,8 @@ fn main() {
         print!("  {}x{}  ", data.nrows(), data.ncols());
         let _ = std::io::stdout().flush();
 
-        // SOM
-        let (som_labels, som_json) = run_som(&data, m, n, epochs);
+        // SOM (two-phase: SOM + KMeans on neurons with ground-truth k)
+        let (som_labels, som_json) = run_som(&data, m, n, k, epochs);
         save_labels(&format!("{results_dir}/{name}_som_labels.csv"), &som_labels);
         print!("SOM✓  ");
         let _ = std::io::stdout().flush();
