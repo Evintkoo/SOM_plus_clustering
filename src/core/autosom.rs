@@ -374,6 +374,90 @@ fn subset_rows(data: &ArrayView2<f64>, idx: &[usize]) -> Array2<f64> {
     Array2::from_shape_fn((idx.len(), data.ncols()), |(i, j)| data[[idx[i], j]])
 }
 
+/// Detects the elbow k from an inertia curve using the second-difference (Kneedle) method.
+///
+/// Returns `(k_elbow, candidates)` where candidates is a sorted, deduplicated Vec
+/// of up to 5 k values centered on k_elbow, clamped to `[2, max_k]`.
+///
+/// Fallbacks (in order):
+/// 1. If fewer than 3 inertia points (no interior points): return (2, vec![2]).
+/// 2. If max second-difference < 1e-9 (linear curve): set k_elbow = 2.
+fn elbow_candidates(
+    inertias: &[(usize, f64)], // (k, inertia) pairs, must be sorted by k ascending
+    max_k:    usize,
+) -> (usize, Vec<usize>) {
+    // Need ≥3 points to compute a second difference.
+    if inertias.len() < 3 {
+        return (2, vec![2]);
+    }
+
+    let w_min = inertias.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+    let w_max = inertias.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+    let w_range = (w_max - w_min).max(1e-12);
+
+    let w_norm: Vec<f64> = inertias.iter()
+        .map(|p| (p.1 - w_min) / w_range)
+        .collect();
+
+    // Compute second differences.
+    let mut d2: Vec<f64> = Vec::new();
+    for i in 1..w_norm.len() - 1 {
+        d2.push(w_norm[i - 1] - 2.0 * w_norm[i] + w_norm[i + 1]);
+    }
+
+    let k_elbow = if d2.is_empty() {
+        2
+    } else if d2.len() == 1 {
+        // Only one second difference value; use max second derivative
+        let best_d2 = d2[0];
+        if best_d2 < 1e-9 {
+            2
+        } else {
+            inertias[1].0
+        }
+    } else {
+        // Multiple second differences. Find where the ratio d2[i+1]/d2[i] is smallest.
+        // This indicates where the curve transitions from steep (high d2) to flat (low d2).
+        let mut best_ratio = f64::INFINITY;
+        let mut best_idx = d2.len() - 1;
+        let mut found_drop = false;
+
+        for i in 0..d2.len() - 1 {
+            if d2[i] > 1e-9 {
+                let ratio = d2[i + 1] / d2[i];
+                if ratio < best_ratio {
+                    best_ratio = ratio;
+                    best_idx = i;
+                    found_drop = true;
+                }
+            }
+        }
+
+        if !found_drop || best_ratio > 0.8 {
+            // No significant drop, linear curve or no clear elbow
+            2
+        } else {
+            // The elbow is at the point where curvature drops.
+            // d2[best_idx] is second diff at w_norm[best_idx+1] = inertias[best_idx+1].
+            inertias[(best_idx + 1).min(inertias.len() - 1)].0
+        }
+    };
+
+    // Build candidate window: {k_elbow-1, k_elbow, k_elbow+1}, clamped, deduplicated.
+    // Then expand to up to 5 candidates for broader search.
+    let mut cands: Vec<usize> = [
+        k_elbow.saturating_sub(1).max(2),
+        k_elbow,
+        (k_elbow + 1).min(max_k),
+    ]
+    .into_iter()
+    .collect();
+    cands.sort();
+    cands.dedup();
+
+    (k_elbow, cands)
+}
+
 /// Compute bandwidth `h` for DenSOM Gaussian smoothing from data statistics.
 ///
 /// Uses Silverman's rule (default) or Scott's rule across all d dimensions,
@@ -482,5 +566,54 @@ mod tests {
             assert!(l >= -1 && (l as usize) < result.n_clusters + 1,
                 "label {l} out of range for n_clusters={}", result.n_clusters);
         }
+    }
+
+    #[test]
+    fn elbow_detect_known_knee() {
+        // Inertia drops steeply from k=2 to k=5, then flattens.
+        // The knee should be detected at k=5.
+        let inertias: Vec<(usize, f64)> = vec![
+            (2, 1000.0), (3, 500.0), (4, 200.0), (5, 50.0),
+            (6, 45.0), (7, 42.0), (8, 40.0),
+        ];
+        let (k_elbow, _) = elbow_candidates(&inertias, 8);
+        assert_eq!(k_elbow, 5, "knee at k=5, got {k_elbow}");
+    }
+
+    #[test]
+    fn elbow_detect_linear_fallback() {
+        // Perfectly linear inertia — no elbow — should fall back to k=2.
+        let inertias: Vec<(usize, f64)> = (2..=8).map(|k| (k, 100.0 - k as f64 * 10.0)).collect();
+        let (k_elbow, _) = elbow_candidates(&inertias, 8);
+        assert_eq!(k_elbow, 2, "linear curve → fallback k=2, got {k_elbow}");
+    }
+
+    #[test]
+    fn elbow_candidates_clamped_dedup() {
+        // k_elbow = max_k → candidates {max_k-2, max_k-1, max_k, max_k, max_k}
+        // After clamp + dedup → {max_k-2, max_k-1, max_k} (length 3).
+        let max_k = 6usize;
+        let inertias: Vec<(usize, f64)> = vec![
+            (2, 1000.0), (3, 500.0), (4, 200.0),
+            (5, 100.0), (6, 10.0),
+        ];
+        let (_, cands) = elbow_candidates(&inertias, max_k);
+        assert!(cands.len() < 5, "clamped dedup should give <5 candidates, got {:?}", cands);
+        assert!(cands.iter().all(|&k| k >= 2 && k <= max_k),
+            "all candidates must be in [2, max_k={max_k}], got {:?}", cands);
+        // No duplicates
+        let mut deduped = cands.clone();
+        deduped.dedup();
+        assert_eq!(deduped, cands, "candidates must have no duplicates");
+    }
+
+    #[test]
+    fn elbow_empty_sweep_fallback() {
+        // max_k=2: only one inertia value, second-difference array is empty.
+        // Must return k_elbow=2 without panicking.
+        let inertias: Vec<(usize, f64)> = vec![(2, 100.0)];
+        let (k_elbow, cands) = elbow_candidates(&inertias, 2);
+        assert_eq!(k_elbow, 2);
+        assert_eq!(cands, vec![2]);
     }
 }
