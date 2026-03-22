@@ -600,7 +600,7 @@ mod tests {
             (2, 1000.0), (3, 500.0), (4, 200.0),
             (5, 100.0), (6, 10.0),
         ];
-        let (k_elbow, cands) = elbow_candidates(&inertias, max_k);
+        let (_, cands) = elbow_candidates(&inertias, max_k);
         // Candidates must be in valid range
         assert!(cands.iter().all(|&k| k >= 2 && k <= max_k),
             "all candidates must be in [2, max_k={max_k}], got {:?}", cands);
