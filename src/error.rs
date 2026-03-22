@@ -18,6 +18,8 @@ pub enum SomError {
     BackendUnavailable(String),
     #[error("KDE found {found} local maxima, need at least {needed}")]
     KdeInsufficientMaxima { found: usize, needed: usize },
+    #[error("insufficient data: need at least 2 points, got {n}")]
+    InsufficientData { n: usize },
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
