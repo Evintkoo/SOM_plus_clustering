@@ -7,4 +7,5 @@ pub mod model_picker;
 pub mod neighborhood;
 pub mod som;
 pub mod som_classification;
+pub mod autosom;
 pub mod densom;

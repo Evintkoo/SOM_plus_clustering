@@ -6,6 +6,7 @@ pub mod serialize;
 pub use error::SomError;
 
 pub use backend::Backend;
+pub use core::autosom::{AlgorithmChoice, AutoSom, AutoSomBuilder, AutoSomResult};
 pub use core::densom::{DenSom, DenSomBuilder, DenSomResult};
 pub use core::distance::DistanceFunction;
 pub use core::evals::bcubed_scores;

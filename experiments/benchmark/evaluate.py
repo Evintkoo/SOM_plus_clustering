@@ -51,16 +51,22 @@ for name, cfg in configs.items():
     y_true = load_ground_truth(name)
     r = rust[name]
 
-    som_labels = load_labels(name, "som")
-    km_labels  = load_labels(name, "km")
+    som_labels    = load_labels(name, "som")
+    km_labels     = load_labels(name, "km")
+    densom_labels = load_labels(name, "densom")
+    auto_labels   = load_labels(name, "auto")
 
+    # DenSOM / AutoSOM labels include -1 for noise.  sklearn metrics treat -1
+    # as its own cluster ID, so ARI/NMI still reflect cluster recovery quality.
     full[name] = {
-        "n_samples":      r["n_samples"],
-        "n_features":     r["n_features"],
+        "n_samples":       r["n_samples"],
+        "n_features":      r["n_features"],
         "n_true_clusters": r["n_true_clusters"],
-        "som_grid":       r["som_grid"],
-        "som":   {**r["som"],    **ext_metrics(y_true, som_labels)},
-        "kmeans":{**r["kmeans"], **ext_metrics(y_true, km_labels)},
+        "som_grid":        r["som_grid"],
+        "som":     {**r["som"],     **ext_metrics(y_true, som_labels)},
+        "kmeans":  {**r["kmeans"],  **ext_metrics(y_true, km_labels)},
+        "densom":  {**r["densom"],  **ext_metrics(y_true, densom_labels)},
+        "autosom": {**r["autosom"], **ext_metrics(y_true, auto_labels)},
     }
 
 out_path = os.path.join(RES_DIR, "full_results.json")

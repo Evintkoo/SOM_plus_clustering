@@ -135,6 +135,97 @@ fn connected_components(core_mask: &[bool], m: usize, n: usize) -> Array1<i32> {
     labels
 }
 
+/// Topographic watershed cluster extraction.
+///
+/// **Phase 1 — find density peaks:** a core neuron is a strict local maximum
+/// when its smooth_density is strictly greater than that of every core
+/// 4-neighbour. These peaks are the cluster seeds. If the density is perfectly
+/// flat among all core neurons (no strict maxima), the single highest-density
+/// core neuron is used as the unique seed.
+///
+/// **Phase 2 — BFS flood-fill:** from all seeds simultaneously (highest-density
+/// seeds seeded into the queue first), expand to every unassigned core
+/// neighbour. First-arrival assigns the cluster. This partitions the core
+/// region into exactly as many clusters as there are density peaks — entirely
+/// determined by the activation map topology, with no hard-coded cluster count.
+fn watershed_components(smooth_density: &[f64], core_mask: &[bool], m: usize, n: usize) -> Array1<i32> {
+    let mn = m * n;
+    let mut labels = Array1::<i32>::from_elem(mn, -1i32);
+    let mut cluster_id = 0i32;
+
+    // Phase 1: collect strict local maxima among core neurons.
+    let mut maxima: Vec<(usize, f64)> = Vec::new();
+    for i in 0..mn {
+        if !core_mask[i] {
+            continue;
+        }
+        let r = i / n;
+        let c = i % n;
+        let val = smooth_density[i];
+        let is_strict_max = [
+            if r > 0     { Some((r - 1) * n + c) } else { None },
+            if r + 1 < m { Some((r + 1) * n + c) } else { None },
+            if c > 0     { Some(r * n + c - 1)   } else { None },
+            if c + 1 < n { Some(r * n + c + 1)   } else { None },
+        ]
+        .into_iter()
+        .flatten()
+        .filter(|&nb| core_mask[nb])
+        .all(|nb| smooth_density[nb] < val);
+
+        if is_strict_max {
+            maxima.push((i, val));
+        }
+    }
+
+    // Fallback: flat core region has no strict maxima — use a single seed at
+    // the highest-density core neuron so the whole region forms one cluster.
+    if maxima.is_empty() {
+        let seed = (0..mn)
+            .filter(|&i| core_mask[i])
+            .max_by(|&a, &b| {
+                smooth_density[a]
+                    .partial_cmp(&smooth_density[b])
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        match seed {
+            Some(s) => maxima.push((s, smooth_density[s])),
+            None    => return labels, // no core neurons at all
+        }
+    }
+
+    // Phase 2: BFS flood-fill. Seed the queue in descending density order so
+    // higher peaks expand first, producing stable basin boundaries.
+    maxima.sort_by(|a, b| {
+        b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let mut queue = VecDeque::new();
+    for (i, _) in &maxima {
+        labels[*i] = cluster_id;
+        queue.push_back(*i);
+        cluster_id += 1;
+    }
+
+    while let Some(cur) = queue.pop_front() {
+        let r = cur / n;
+        let c = cur % n;
+        let cur_label = labels[cur];
+        let neighbours: [Option<usize>; 4] = [
+            if r > 0     { Some((r - 1) * n + c) } else { None },
+            if r + 1 < m { Some((r + 1) * n + c) } else { None },
+            if c > 0     { Some(r * n + c - 1)   } else { None },
+            if c + 1 < n { Some(r * n + c + 1)   } else { None },
+        ];
+        for nb in neighbours.into_iter().flatten() {
+            if core_mask[nb] && labels[nb] == -1 {
+                labels[nb] = cur_label;
+                queue.push_back(nb);
+            }
+        }
+    }
+    labels
+}
+
 impl Default for DenSomBuilder {
     fn default() -> Self {
         Self::new()
@@ -224,16 +315,26 @@ impl DenSom {
     fn finalize(&mut self) {
         let m = self.som.m;
         let n = self.som.n;
+
+        // Adaptive sigma: scale the user's smooth_sigma by the grid's geometric
+        // mean side length divided by 2π (the bandwidth-resolution trade-off of a
+        // Gaussian filter on a discrete lattice). This makes smooth_sigma=1.0 mean
+        // "one natural frequency unit of the grid" regardless of grid dimensions,
+        // preserving peak separability across grid sizes.
+        let effective_sigma = self.smooth_sigma
+            * (m as f64 * n as f64).sqrt()
+            / (2.0 * std::f64::consts::PI);
+
         self.smooth_density = smooth_hits(
             self.bmu_hits.as_slice().unwrap(),
             m,
             n,
-            self.smooth_sigma,
+            effective_sigma,
         );
 
         let max_d = self.smooth_density.iter().cloned().fold(0.0f64, f64::max);
         if max_d == 0.0 {
-            // No data reached any neuron — treat all as one core component
+            // No data reached any neuron — treat all as one core component.
             let core_mask = vec![true; m * n];
             self.cluster_map = connected_components(&core_mask, m, n);
             self.n_clusters = 1;
@@ -249,14 +350,22 @@ impl DenSom {
             .sqrt();
 
         let core_mask: Vec<bool> = if std_dev < 1e-9 {
-            // Flat density — all core
+            // Flat density — all core; connected_components gives 1 cluster.
             vec![true; m * n]
         } else {
             let tau = otsu(&vals);
             vals.iter().map(|&v| v >= tau).collect()
         };
 
-        self.cluster_map = connected_components(&core_mask, m, n);
+        // Watershed extracts one cluster per density peak inside the core region,
+        // partitioning by basin of attraction. Connected_components is only used
+        // for the flat-density edge case where every neuron is equally core.
+        self.cluster_map = if std_dev < 1e-9 {
+            connected_components(&core_mask, m, n)
+        } else {
+            watershed_components(&vals, &core_mask, m, n)
+        };
+
         self.n_clusters = {
             let max_id = self.cluster_map.iter().cloned().max().unwrap_or(-1);
             if max_id < 0 { 0 } else { (max_id + 1) as usize }
@@ -525,5 +634,46 @@ mod tests {
         let data = Array2::<f64>::zeros((5, 2));
         let result = densom.predict(&data.view());
         assert!(matches!(result, Err(SomError::NotFitted(_))));
+    }
+
+    #[test]
+    fn watershed_two_peaks() {
+        // 5×5 grid: two isolated density peaks at corners (0,0) and (4,4).
+        // All neurons are core (above a floor). Watershed should assign every
+        // neuron to one of the two peaks, producing exactly 2 clusters.
+        let mn = 25;
+        let mut density = vec![0.1f64; mn]; // low background — all core
+        density[0]  = 1.0; // peak at (row=0, col=0)
+        density[24] = 1.0; // peak at (row=4, col=4)
+        let core_mask = vec![true; mn];
+        let labels = watershed_components(&density, &core_mask, 5, 5);
+
+        // Both peak neurons must be in different clusters.
+        assert!(labels[0]  >= 0, "peak (0,0) should be core");
+        assert!(labels[24] >= 0, "peak (4,4) should be core");
+        assert_ne!(labels[0], labels[24], "two peaks must be different clusters");
+
+        // Count distinct cluster IDs.
+        let mut ids: Vec<i32> = labels.iter().filter(|&&v| v >= 0).cloned().collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 2, "expected exactly 2 watershed clusters, got {}", ids.len());
+
+        // No noise neurons (all core).
+        assert!(labels.iter().all(|&v| v >= 0), "all neurons are core — none should be noise");
+    }
+
+    #[test]
+    fn watershed_single_peak_all_core() {
+        // When there is only one density peak, watershed must produce 1 cluster.
+        let mn = 9;
+        let mut density = vec![0.1f64; mn];
+        density[4] = 1.0; // single peak at centre of 3×3
+        let core_mask = vec![true; mn];
+        let labels = watershed_components(&density, &core_mask, 3, 3);
+        let mut ids: Vec<i32> = labels.iter().filter(|&&v| v >= 0).cloned().collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 1, "single peak → exactly 1 cluster, got {}", ids.len());
     }
 }

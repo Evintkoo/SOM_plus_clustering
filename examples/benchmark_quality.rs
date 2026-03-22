@@ -1,9 +1,10 @@
 //! Rust quality + speed benchmark across the full SIPU + shape + real-world + scalability suite.
 //!
-//! Reads dataset_config.json, runs SOM and KMeans on every dataset, outputs:
+//! Reads dataset_config.json, runs SOM, KMeans, and DenSOM on every dataset, outputs:
 //!   experiments/benchmark/results/rust_metrics.json    (timing + internal metrics)
 //!   experiments/benchmark/results/<name>_som_labels.csv
 //!   experiments/benchmark/results/<name>_km_labels.csv
+//!   experiments/benchmark/results/<name>_densom_labels.csv
 //!
 //! Run from crate root:
 //!   cargo run --example benchmark_quality --release
@@ -12,7 +13,8 @@ use ndarray::Array2;
 use serde::Deserialize;
 use som_plus_clustering::{
     calinski_harabasz_score, davies_bouldin_index, dunn_index, silhouette_score,
-    DistanceFunction, InitMethod, KMeansBuilder, KMeansInit, SomBuilder,
+    AutoSomBuilder, DenSomBuilder, DistanceFunction, InitMethod, KMeansBuilder, KMeansInit,
+    SomBuilder,
 };
 use std::{fs, io::Write, time::Instant};
 
@@ -55,6 +57,11 @@ fn load_csv(base_dir: &str, name: &str) -> Array2<f64> {
 // Save predicted labels (one per line)
 // ---------------------------------------------------------------------------
 fn save_labels(path: &str, labels: &[usize]) {
+    let content: String = labels.iter().map(|l| l.to_string() + "\n").collect();
+    fs::write(path, content).unwrap_or_else(|e| eprintln!("warn: cannot write {path}: {e}"));
+}
+
+fn save_labels_i32(path: &str, labels: &[i32]) {
     let content: String = labels.iter().map(|l| l.to_string() + "\n").collect();
     fs::write(path, content).unwrap_or_else(|e| eprintln!("warn: cannot write {path}: {e}"));
 }
@@ -145,6 +152,90 @@ fn run_kmeans(data: &Array2<f64>, k: usize) -> (Vec<usize>, String) {
     (labels.to_vec(), json)
 }
 
+fn run_densom(data: &Array2<f64>, m: usize, n: usize, epochs: usize) -> (Vec<i32>, String) {
+    let dim = data.ncols();
+    let mut densom = DenSomBuilder::new()
+        .grid(m, n)
+        .dim(dim)
+        .learning_rate(0.5)
+        .expect("valid lr")
+        .neighbor_radius(3.0)
+        .init_method(InitMethod::Random)
+        .distance(DistanceFunction::Euclidean)
+        .smooth_sigma(1.0)
+        .build();
+
+    let t0 = Instant::now();
+    let result = densom.fit_predict(&data.view(), epochs, true, None)
+        .expect("DenSOM fit_predict failed");
+    let fit_s = t0.elapsed().as_secs_f64();
+
+    // Build a usize label array for internal metric computation (map -1 noise → its own bucket).
+    // We assign noise points to n_neurons (a virtual "noise cluster") so internal metrics still run.
+    let n_neurons = m * n;
+    let labels_usize: ndarray::Array1<usize> = result.labels.mapv(|l| {
+        if l < 0 { n_neurons } else { l as usize }
+    });
+    let (sil, db, ch, dunn) = compute_metrics(data, &labels_usize);
+
+    let n_noise = result.labels.iter().filter(|&&l| l < 0).count();
+    let json = format!(
+        r#"{{"fit_time_s":{fit:.4},"n_clusters_found":{nc},"noise_count":{nn},"noise_ratio":{nr:.4},"silhouette":{sil},"davies_bouldin":{db},"calinski_harabasz":{ch},"dunn":{dunn}}}"#,
+        fit = fit_s,
+        nc  = result.n_clusters,
+        nn  = n_noise,
+        nr  = result.noise_ratio,
+        sil = jf(sil),
+        db  = jf(db),
+        ch  = jf(ch),
+        dunn= jf(dunn),
+    );
+    (result.labels.to_vec(), json)
+}
+
+fn run_autosom(data: &Array2<f64>, m: usize, n: usize, epochs: usize) -> (Vec<i32>, String) {
+    let dim = data.ncols();
+    let mut auto = AutoSomBuilder::new()
+        .grid(m, n)
+        .dim(dim)
+        .learning_rate(0.5)
+        .expect("valid lr")
+        .neighbor_radius(3.0)
+        .init_method(InitMethod::Random)
+        .distance(DistanceFunction::Euclidean)
+        .smooth_sigma(1.0)
+        .build();
+
+    let t0 = Instant::now();
+    let result = auto.fit_predict(&data.view(), epochs, true, None)
+        .expect("AutoSOM fit_predict failed");
+    let fit_s = t0.elapsed().as_secs_f64();
+
+    // Map noise (-1) to virtual bucket for internal metrics.
+    let n_neurons = m * n;
+    let labels_usize: ndarray::Array1<usize> = result.labels.mapv(|l| {
+        if l < 0 { n_neurons } else { l as usize }
+    });
+    let (sil, db, ch, dunn) = compute_metrics(data, &labels_usize);
+
+    let n_noise = result.labels.iter().filter(|&&l| l < 0).count();
+    let algo_str = result.algorithm.to_string();
+    let json = format!(
+        r#"{{"fit_time_s":{fit:.4},"algorithm":"{algo}","k_detected":{kd},"n_clusters_found":{nc},"noise_count":{nn},"noise_ratio":{nr:.4},"silhouette":{sil},"davies_bouldin":{db},"calinski_harabasz":{ch},"dunn":{dunn}}}"#,
+        fit  = fit_s,
+        algo = algo_str,
+        kd   = result.k_detected,
+        nc   = result.n_clusters,
+        nn   = n_noise,
+        nr   = result.noise_ratio,
+        sil  = jf(sil),
+        db   = jf(db),
+        ch   = jf(ch),
+        dunn = jf(dunn),
+    );
+    (result.labels.to_vec(), json)
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let base_dir    = args.get(1).map(String::as_str).unwrap_or("experiments/benchmark/datasets");
@@ -185,18 +276,32 @@ fn main() {
         // KMeans
         let (km_labels, km_json) = run_kmeans(&data, k);
         save_labels(&format!("{results_dir}/{name}_km_labels.csv"), &km_labels);
-        println!("KMeans✓");
+        print!("KMeans✓  ");
+        let _ = std::io::stdout().flush();
+
+        // DenSOM
+        let (densom_labels, densom_json) = run_densom(&data, m, n, epochs);
+        save_labels_i32(&format!("{results_dir}/{name}_densom_labels.csv"), &densom_labels);
+        print!("DenSOM✓  ");
+        let _ = std::io::stdout().flush();
+
+        // AutoSOM
+        let (auto_labels, auto_json) = run_autosom(&data, m, n, epochs);
+        save_labels_i32(&format!("{results_dir}/{name}_auto_labels.csv"), &auto_labels);
+        println!("AutoSOM✓");
 
         entries.push(format!(
-            r#"  "{name}": {{"n_samples":{ns},"n_features":{nf},"n_true_clusters":{nc},"som_grid":"{m}x{n}","som":{som},"kmeans":{km}}}"#,
-            name = name,
-            ns   = data.nrows(),
-            nf   = data.ncols(),
-            nc   = k,
-            m    = m,
-            n    = n,
-            som  = som_json,
-            km   = km_json,
+            r#"  "{name}": {{"n_samples":{ns},"n_features":{nf},"n_true_clusters":{nc},"som_grid":"{m}x{n}","som":{som},"kmeans":{km},"densom":{densom},"autosom":{autosom}}}"#,
+            name    = name,
+            ns      = data.nrows(),
+            nf      = data.ncols(),
+            nc      = k,
+            m       = m,
+            n       = n,
+            som     = som_json,
+            km      = km_json,
+            densom  = densom_json,
+            autosom = auto_json,
         ));
     }
 
@@ -204,5 +309,5 @@ fn main() {
     let out_path = format!("{results_dir}/rust_metrics.json");
     fs::write(&out_path, &json).expect("cannot write metrics");
     println!("\nMetrics → {out_path}");
-    println!("Labels  → {results_dir}/<name>_{{som,km}}_labels.csv");
+    println!("Labels  → {results_dir}/<name>_{{som,km,densom,auto}}_labels.csv");
 }
