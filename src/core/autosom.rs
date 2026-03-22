@@ -10,6 +10,7 @@ use crate::{
     SomError,
 };
 use ndarray::{Array1, Array2, ArrayView2};
+use rand::{SeedableRng, rngs::StdRng, Rng};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AlgorithmChoice {
@@ -507,6 +508,111 @@ fn compute_adaptive_sigma(
     h.clamp(0.5, grid_side / 2.0)
 }
 
+/// Gap statistic (Tibshirani et al. 2001) for k selection.
+///
+/// For each candidate k (sorted ascending), computes:
+///   Gap(k) = E[log W_k^ref] - log W_k
+///
+/// where W_k^ref is within-cluster dispersion on `n_refs` uniformly random
+/// reference datasets drawn from the data's bounding box.
+///
+/// Uses Tibshirani's stopping criterion over the sorted candidate list:
+///   best_k = smallest k where Gap(k) ≥ Gap(k_next) - SE(k_next)
+///
+/// Falls back to k with maximum Gap, or `k_elbow` if all fits fail.
+fn gap_statistic(
+    sample_data: &ArrayView2<f64>,
+    candidates:  &[usize],
+    n_refs:      usize,
+    k_elbow:     usize,
+) -> usize {
+    let n = sample_data.nrows();
+    let d = sample_data.ncols();
+
+    // Per-dimension bounding box for reference data generation.
+    let mut col_min = vec![f64::INFINITY;     d];
+    let mut col_max = vec![f64::NEG_INFINITY; d];
+    for j in 0..d {
+        for i in 0..n {
+            let v = sample_data[[i, j]];
+            if v < col_min[j] { col_min[j] = v; }
+            if v > col_max[j] { col_max[j] = v; }
+        }
+    }
+
+    // Per-call seed derived from sample size for reproducibility.
+    let base_seed = n as u64;
+    let mut gap_vals: Vec<(usize, f64, f64)> = Vec::new(); // (k, gap, se)
+
+    for &k in candidates {
+        if n < 2 * k { continue; } // too few points for this k
+
+        // Inertia on actual data.
+        let mut km = KMeansBuilder::new()
+            .n_clusters(k)
+            .method(KMeansInit::PlusPlus)
+            .max_iters(100)
+            .build();
+        if km.fit(sample_data).is_err() { continue; }
+        let wk = km.inertia().unwrap_or(0.0);
+        let log_wk = if wk > 0.0 { wk.ln() } else { 0.0 };
+
+        // Inertia on n_refs uniform reference datasets.
+        let mut ref_log_wks: Vec<f64> = Vec::with_capacity(n_refs);
+        let mut rng = StdRng::seed_from_u64(base_seed.wrapping_add(k as u64));
+
+        for _ in 0..n_refs {
+            let ref_data = Array2::from_shape_fn((n, d), |(_i, j)| {
+                let lo = col_min[j];
+                let hi = col_max[j];
+                if (hi - lo).abs() < 1e-12 { lo }
+                else { lo + rng.random::<f64>() * (hi - lo) }
+            });
+            let mut km_ref = KMeansBuilder::new()
+                .n_clusters(k)
+                .method(KMeansInit::PlusPlus)
+                .max_iters(100)
+                .build();
+            if km_ref.fit(&ref_data.view()).is_err() { continue; }
+            let w_ref = km_ref.inertia().unwrap_or(0.0);
+            if w_ref > 0.0 { ref_log_wks.push(w_ref.ln()); }
+        }
+
+        if ref_log_wks.is_empty() { continue; }
+
+        let b        = ref_log_wks.len() as f64;
+        let mean_ref = ref_log_wks.iter().sum::<f64>() / b;
+        let gap      = mean_ref - log_wk;
+        let std_ref  = (ref_log_wks.iter()
+            .map(|&x| (x - mean_ref).powi(2))
+            .sum::<f64>()
+            / b).sqrt();
+        let se = std_ref * (1.0 + 1.0 / b).sqrt();
+
+        gap_vals.push((k, gap, se));
+    }
+
+    if gap_vals.is_empty() {
+        return k_elbow;
+    }
+
+    // Tibshirani criterion: smallest k where Gap(k) ≥ Gap(k_next) - SE(k_next).
+    // k_next is the next element in gap_vals (not necessarily k+1 in integers).
+    for i in 0..gap_vals.len().saturating_sub(1) {
+        let (k, gap_k, _)          = gap_vals[i];
+        let (_, gap_next, se_next) = gap_vals[i + 1];
+        if gap_k >= gap_next - se_next {
+            return k;
+        }
+    }
+
+    // Fallback: k with maximum Gap(k).
+    gap_vals.iter()
+        .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|&(k, _, _)| k)
+        .unwrap_or(k_elbow)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -620,5 +726,18 @@ mod tests {
         let (k_elbow, cands) = elbow_candidates(&inertias, 2);
         assert_eq!(k_elbow, 2);
         assert_eq!(cands, vec![2]);
+    }
+
+    #[test]
+    fn gap_statistic_two_blobs() {
+        // Two tight, well-separated blobs at (0,0) and (10,10).
+        // Gap statistic with a fixed seed must select k=2.
+        let mut v = Vec::with_capacity(200);
+        for i in 0..50i64 { v.push(i as f64 * 0.01); v.push(i as f64 * 0.01); }
+        for i in 0..50i64 { v.push(10.0 + i as f64 * 0.01); v.push(10.0 + i as f64 * 0.01); }
+        let data = Array2::from_shape_vec((100, 2), v).unwrap();
+        let candidates = vec![2, 3, 4];
+        let best = gap_statistic(&data.view(), &candidates, 10, 2);
+        assert_eq!(best, 2, "two blobs → gap must pick k=2, got k={best}");
     }
 }
