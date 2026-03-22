@@ -101,6 +101,41 @@ fn otsu(values: &[f64]) -> f64 {
     min + (best_t as f64 / (BINS - 1) as f64) * (max - min)
 }
 
+/// BFS connected-components on core neurons with 4-neighbour connectivity.
+/// Returns cluster IDs in row-major order; noise neurons receive -1.
+fn connected_components(core_mask: &[bool], m: usize, n: usize) -> Array1<i32> {
+    let mn = m * n;
+    let mut labels = Array1::<i32>::from_elem(mn, -1i32);
+    let mut cluster_id = 0i32;
+
+    for start in 0..mn {
+        if !core_mask[start] || labels[start] != -1 {
+            continue;
+        }
+        let mut queue = VecDeque::new();
+        queue.push_back(start);
+        labels[start] = cluster_id;
+        while let Some(cur) = queue.pop_front() {
+            let r = cur / n;
+            let c = cur % n;
+            let neighbours: [Option<usize>; 4] = [
+                if r > 0     { Some((r - 1) * n + c) } else { None },
+                if r + 1 < m { Some((r + 1) * n + c) } else { None },
+                if c > 0     { Some(r * n + c - 1)   } else { None },
+                if c + 1 < n { Some(r * n + c + 1)   } else { None },
+            ];
+            for nb in neighbours.into_iter().flatten() {
+                if core_mask[nb] && labels[nb] == -1 {
+                    labels[nb] = cluster_id;
+                    queue.push_back(nb);
+                }
+            }
+        }
+        cluster_id += 1;
+    }
+    labels
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,5 +164,30 @@ mod tests {
             .map(|(i, _)| i)
             .unwrap();
         assert_eq!(max_idx, 4, "peak should stay at centre neuron");
+    }
+
+    #[test]
+    fn connected_components_two_islands() {
+        // 5×5 grid: top-left 2×2 block core, bottom-right 2×2 block core, rest noise
+        // Neurons: row-major index = r*5 + c
+        // Core: (0,0)=0 (0,1)=1 (1,0)=5 (1,1)=6  AND  (3,3)=18 (3,4)=19 (4,3)=23 (4,4)=24
+        let mut core = [false; 25];
+        for &i in &[0usize, 1, 5, 6, 18, 19, 23, 24] {
+            core[i] = true;
+        }
+        let labels = connected_components(&core, 5, 5);
+        // Two distinct non-negative cluster IDs
+        let id_a = labels[0];
+        let id_b = labels[18];
+        assert!(id_a >= 0, "top-left block should be a core cluster");
+        assert!(id_b >= 0, "bottom-right block should be a core cluster");
+        assert_ne!(id_a, id_b, "two blocks must be different clusters");
+        // Noise neurons get -1
+        assert_eq!(labels[12], -1, "centre neuron should be noise");
+        // Count distinct non-noise cluster IDs
+        let mut ids: Vec<i32> = labels.iter().filter(|&&v| v >= 0).cloned().collect();
+        ids.sort();
+        ids.dedup();
+        assert_eq!(ids.len(), 2, "expected exactly 2 clusters, got {}", ids.len());
     }
 }
