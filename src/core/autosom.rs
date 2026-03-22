@@ -492,8 +492,10 @@ fn compute_adaptive_sigma(
 /// For each candidate k (sorted ascending), computes:
 ///   Gap(k) = E[log W_k^ref] - log W_k
 ///
-/// where W_k^ref is within-cluster dispersion on `n_refs` uniformly random
-/// reference datasets drawn from the data's bounding box.
+/// where W_k^ref is within-cluster dispersion on `n_refs` diagonal Gaussian
+/// reference datasets (Method B: per-dimension mean and std matching the data).
+/// This correctly models the null hypothesis "data comes from one Gaussian"
+/// vs "data has k Gaussian components," giving a clear Gap peak at k_true.
 ///
 /// Selects k with maximum Gap(k). Argmax is robust across cluster counts and
 /// avoids the Tibshirani forward criterion's pitfall of stopping too early
@@ -509,16 +511,18 @@ fn gap_statistic(
     let n = sample_data.nrows();
     let d = sample_data.ncols();
 
-    // Per-dimension bounding box for reference data generation.
-    let mut col_min = vec![f64::INFINITY;     d];
-    let mut col_max = vec![f64::NEG_INFINITY; d];
-    for j in 0..d {
-        for i in 0..n {
-            let v = sample_data[[i, j]];
-            if v < col_min[j] { col_min[j] = v; }
-            if v > col_max[j] { col_max[j] = v; }
-        }
-    }
+    // Gaussian reference statistics (Tibshirani et al. 2001, Method B):
+    // per-dimension mean and std for diagonal Gaussian null hypothesis.
+    let means: Vec<f64> = (0..d).map(|j| {
+        sample_data.column(j).iter().sum::<f64>() / n as f64
+    }).collect();
+    let stds: Vec<f64> = (0..d).map(|j| {
+        let m = means[j];
+        let var = sample_data.column(j).iter()
+            .map(|&x| (x - m).powi(2))
+            .sum::<f64>() / n as f64;
+        var.sqrt().max(1e-12)
+    }).collect();
 
     // Per-call seed derived from sample size for reproducibility.
     let base_seed = n as u64;
@@ -537,16 +541,17 @@ fn gap_statistic(
         let wk = km.inertia().unwrap_or(0.0);
         let log_wk = if wk > 0.0 { wk.ln() } else { continue; };
 
-        // Inertia on n_refs uniform reference datasets.
+        // Inertia on n_refs diagonal Gaussian reference datasets.
         let mut ref_log_wks: Vec<f64> = Vec::with_capacity(n_refs);
         let mut rng = StdRng::seed_from_u64(base_seed.wrapping_add(k as u64));
 
         for _ in 0..n_refs {
             let ref_data = Array2::from_shape_fn((n, d), |(_i, j)| {
-                let lo = col_min[j];
-                let hi = col_max[j];
-                if (hi - lo).abs() < 1e-12 { lo }
-                else { lo + rng.random::<f64>() * (hi - lo) }
+                // Box-Muller: two uniform samples → one standard normal
+                let u1 = rng.random::<f64>().max(1e-300);
+                let u2 = rng.random::<f64>();
+                let z = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f64::consts::PI * u2).cos();
+                means[j] + stds[j] * z
             });
             let mut km_ref = KMeansBuilder::new()
                 .n_clusters(k)
