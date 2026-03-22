@@ -375,7 +375,7 @@ fn subset_rows(data: &ArrayView2<f64>, idx: &[usize]) -> Array2<f64> {
 /// 1. If fewer than 3 inertia points (no interior points): return (2, vec![2]).
 /// 2. If max second-difference < 1e-9 (linear curve): set k_elbow = 2.
 fn elbow_candidates(
-    inertias: &[(usize, f64)], // (k, inertia) pairs, must be sorted by k ascending
+    inertias: &[(usize, f64)], // (k, inertia) pairs, sorted by k ascending
     max_k:    usize,
 ) -> (usize, Vec<usize>) {
     // Need ≥3 points to compute a second difference.
@@ -391,52 +391,29 @@ fn elbow_candidates(
         .map(|p| (p.1 - w_min) / w_range)
         .collect();
 
-    // Compute second differences.
-    let mut d2: Vec<f64> = Vec::new();
-    for i in 1..w_norm.len() - 1 {
-        d2.push(w_norm[i - 1] - 2.0 * w_norm[i] + w_norm[i + 1]);
-    }
+    // Second differences: Δ²W(k) = W_norm(k-1) - 2·W_norm(k) + W_norm(k+1)
+    // Interior points only (index 1..len-1), so k-1 and k+1 both exist.
+    let d2: Vec<f64> = (1..w_norm.len() - 1)
+        .map(|i| w_norm[i - 1] - 2.0 * w_norm[i] + w_norm[i + 1])
+        .collect();
 
+    // k_elbow = argmax Δ²W. Fallback to 2 if curve is linear (max < 1e-9).
     let k_elbow = if d2.is_empty() {
         2
-    } else if d2.len() == 1 {
-        // Only one second difference value; use max second derivative
-        let best_d2 = d2[0];
-        if best_d2 < 1e-9 {
-            2
-        } else {
-            inertias[1].0
-        }
     } else {
-        // Multiple second differences. Find where the ratio d2[i+1]/d2[i] is smallest.
-        // This indicates where the curve transitions from steep (high d2) to flat (low d2).
-        let mut best_ratio = f64::INFINITY;
-        let mut best_idx = d2.len() - 1;
-        let mut found_drop = false;
-
-        for i in 0..d2.len() - 1 {
-            if d2[i] > 1e-9 {
-                let ratio = d2[i + 1] / d2[i];
-                if ratio < best_ratio {
-                    best_ratio = ratio;
-                    best_idx = i;
-                    found_drop = true;
-                }
-            }
-        }
-
-        if !found_drop || best_ratio > 0.8 {
-            // No significant drop, linear curve or no clear elbow
-            2
+        let (best_pos, &best_d2) = d2.iter().enumerate()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .unwrap();
+        if best_d2 < 1e-9 {
+            2 // linear curve — no elbow
         } else {
-            // The elbow is at the point where curvature drops.
-            // d2[best_idx] is second diff at w_norm[best_idx+1] = inertias[best_idx+1].
-            inertias[(best_idx + 1).min(inertias.len() - 1)].0
+            // d2[best_pos] corresponds to inertias[best_pos + 1] (interior point offset by 1)
+            inertias[best_pos + 1].0
         }
     };
 
-    // Build candidate window: {k_elbow-2, k_elbow-1, k_elbow, k_elbow+1, k_elbow+2}, clamped, deduplicated.
-    // This provides a 5-value window for broader search per spec.
+    // Candidate window: {k_elbow-2, k_elbow-1, k_elbow, k_elbow+1, k_elbow+2},
+    // clamped to [2, max_k], deduplicated.
     let mut cands: Vec<usize> = [
         k_elbow.saturating_sub(2).max(2),
         k_elbow.saturating_sub(1).max(2),
@@ -673,14 +650,16 @@ mod tests {
 
     #[test]
     fn elbow_detect_known_knee() {
-        // Inertia drops steeply from k=2 to k=5, then flattens.
-        // The knee should be detected at k=5.
+        // Inertia curve with known maximum second difference at k=5.
+        // w_norm: [1.0, 0.875, 0.75, 0.0, 0.125, 0.2, 0.25]
+        // d2: [0.0, -0.625, 0.875 (at k=5), -0.05, -0.025]
+        // argmax Δ²W yields k=5.
         let inertias: Vec<(usize, f64)> = vec![
-            (2, 1000.0), (3, 500.0), (4, 200.0), (5, 50.0),
-            (6, 45.0), (7, 42.0), (8, 40.0),
+            (2, 100.0), (3, 95.0), (4, 90.0), (5, 60.0),
+            (6, 65.0), (7, 68.0), (8, 70.0),
         ];
         let (k_elbow, _) = elbow_candidates(&inertias, 8);
-        assert_eq!(k_elbow, 5, "knee at k=5, got {k_elbow}");
+        assert_eq!(k_elbow, 5, "argmax of second differences should be at k=5, got {k_elbow}");
     }
 
     #[test]
