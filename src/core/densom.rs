@@ -136,6 +136,50 @@ fn connected_components(core_mask: &[bool], m: usize, n: usize) -> Array1<i32> {
     labels
 }
 
+impl DenSom {
+    fn finalize(&mut self) {
+        let m = self.som.m;
+        let n = self.som.n;
+        self.smooth_density = smooth_hits(
+            self.bmu_hits.as_slice().unwrap(),
+            m,
+            n,
+            self.smooth_sigma,
+        );
+
+        let max_d = self.smooth_density.iter().cloned().fold(0.0f64, f64::max);
+        if max_d == 0.0 {
+            // No data reached any neuron — treat all as one core component
+            let core_mask = vec![true; m * n];
+            self.cluster_map = connected_components(&core_mask, m, n);
+            self.n_clusters = 1;
+            return;
+        }
+
+        let vals: Vec<f64> = self.smooth_density.iter().cloned().collect();
+        let mean = vals.iter().sum::<f64>() / vals.len() as f64;
+        let std_dev = (vals.iter()
+            .map(|v| (v - mean).powi(2))
+            .sum::<f64>()
+            / vals.len() as f64)
+            .sqrt();
+
+        let core_mask: Vec<bool> = if std_dev < 1e-9 {
+            // Flat density — all core
+            vec![true; m * n]
+        } else {
+            let tau = otsu(&vals);
+            vals.iter().map(|&v| v >= tau).collect()
+        };
+
+        self.cluster_map = connected_components(&core_mask, m, n);
+        self.n_clusters = {
+            let max_id = self.cluster_map.iter().cloned().max().unwrap_or(-1);
+            if max_id < 0 { 0 } else { (max_id + 1) as usize }
+        };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,5 +233,33 @@ mod tests {
         ids.sort();
         ids.dedup();
         assert_eq!(ids.len(), 2, "expected exactly 2 clusters, got {}", ids.len());
+    }
+
+    #[test]
+    fn flat_activation_all_core() {
+        // Flat hits (all same value, std ≈ 0) → pre-check fires → all neurons core → n_clusters ≥ 1
+        let hits = vec![5usize; 4]; // 2×2 grid, uniform
+        let smooth = smooth_hits(&hits, 2, 2, 1.0);
+        let vals: Vec<f64> = smooth.iter().cloned().collect();
+        let mean = vals.iter().sum::<f64>() / vals.len() as f64;
+        let std_dev = (vals.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / vals.len() as f64).sqrt();
+        assert!(std_dev < 1e-9, "uniform hits should produce near-zero std after smoothing");
+        // All neurons should be core (pre-check fires)
+        let core_mask = vec![true; 4];
+        let labels = connected_components(&core_mask, 2, 2);
+        let n_clusters = {
+            let max_id = labels.iter().cloned().max().unwrap_or(-1);
+            if max_id < 0 { 0 } else { (max_id + 1) as usize }
+        };
+        assert!(n_clusters >= 1, "flat activation should produce at least 1 cluster");
+    }
+
+    #[test]
+    fn zero_hits_all_density_zero() {
+        // All zeros → max == 0.0 guard → density scores all 0.0
+        let hits = vec![0usize; 9];
+        let smooth = smooth_hits(&hits, 3, 3, 1.0);
+        let max_d = smooth.iter().cloned().fold(0.0f64, f64::max);
+        assert_eq!(max_d, 0.0, "all-zero hits → max density must be 0.0");
     }
 }
