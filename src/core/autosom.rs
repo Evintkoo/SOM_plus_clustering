@@ -555,7 +555,7 @@ fn gap_statistic(
             .build();
         if km.fit(sample_data).is_err() { continue; }
         let wk = km.inertia().unwrap_or(0.0);
-        let log_wk = if wk > 0.0 { wk.ln() } else { 0.0 };
+        let log_wk = if wk > 0.0 { wk.ln() } else { continue; };
 
         // Inertia on n_refs uniform reference datasets.
         let mut ref_log_wks: Vec<f64> = Vec::with_capacity(n_refs);
@@ -583,10 +583,14 @@ fn gap_statistic(
         let b        = ref_log_wks.len() as f64;
         let mean_ref = ref_log_wks.iter().sum::<f64>() / b;
         let gap      = mean_ref - log_wk;
-        let std_ref  = (ref_log_wks.iter()
-            .map(|&x| (x - mean_ref).powi(2))
-            .sum::<f64>()
-            / b).sqrt();
+        let std_ref  = if b > 1.0 {
+            (ref_log_wks.iter()
+                .map(|&x| (x - mean_ref).powi(2))
+                .sum::<f64>()
+                / (b - 1.0)).sqrt()
+        } else {
+            0.0
+        };
         let se = std_ref * (1.0 + 1.0 / b).sqrt();
 
         gap_vals.push((k, gap, se));
