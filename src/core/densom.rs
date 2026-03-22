@@ -46,13 +46,13 @@ fn smooth_hits(hits: &[usize], m: usize, n: usize, sigma: f64) -> Array1<f64> {
         let ri = (i / n) as f64;
         let ci = (i % n) as f64;
         let mut acc = 0.0f64;
-        for j in 0..mn {
+        for (j, &hit) in hits.iter().enumerate().take(mn) {
             let rj = (j / n) as f64;
             let cj = (j % n) as f64;
             let dr = ri - rj;
             let dc = ci - cj;
             let dist_sq = dr * dr + dc * dc;
-            acc += neighborhood::gaussian(dist_sq, 1.0, sigma) * hits[j] as f64;
+            acc += neighborhood::gaussian(dist_sq, 1.0, sigma) * hit as f64;
         }
         out[i] = acc;
     }
@@ -82,8 +82,8 @@ fn otsu(values: &[f64]) -> f64 {
     let mut sum0 = 0.0f64;
     let mut best_var = f64::NEG_INFINITY;
     let mut best_t = 0usize;
-    for t in 0..BINS {
-        w0 += hist[t] as f64;
+    for (t, &h) in hist.iter().enumerate().take(BINS) {
+        w0 += h as f64;
         if w0 == 0.0 {
             continue;
         }
@@ -91,7 +91,7 @@ fn otsu(values: &[f64]) -> f64 {
         if w1 == 0.0 {
             break;
         }
-        sum0 += t as f64 * hist[t] as f64;
+        sum0 += t as f64 * h as f64;
         let mu0 = sum0 / w0;
         let mu1 = (total_sum - sum0) / w1;
         let var_between = w0 * w1 * (mu0 - mu1).powi(2);
