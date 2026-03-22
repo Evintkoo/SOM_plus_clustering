@@ -325,10 +325,138 @@ impl Som {
         &self.neurons
     }
 
+    /// **SOM + Topology-Seeded KMeans (SOM-TSK)** — the recommended clustering
+    /// method.
+    ///
+    /// Three-stage pipeline:
+    ///
+    /// 1. KMeans on the `m*n` neuron weight vectors → k neuron-cluster groups.
+    /// 2. Compute **hit-count-weighted centroids**: for each cluster, average the
+    ///    neuron positions weighted by how many data points map to each neuron.
+    ///    Neurons in dense cluster cores get more influence; empty/boundary neurons
+    ///    get less. This places the initial centroids closer to the true cluster
+    ///    centres than unweighted neuron averages.
+    /// 3. **KMeans refinement on raw data** starting from those weighted centroids
+    ///    (Lloyd iterations). This eliminates the neuron-quantisation error that
+    ///    limits plain `predict_clustered` — the cluster boundary is now computed
+    ///    directly in data space rather than neuron space.
+    ///
+    /// The SOM provides topology-aware, globally distributed initial centroids
+    /// (avoiding the "multiple seeds in the same cluster" failure mode of
+    /// KMeans++ on many-cluster datasets). The refinement step then finds the
+    /// optimal assignment in raw-data space.
+    pub fn predict_clustered_refined(
+        &self,
+        data: &ArrayView2<f64>,
+        k:    usize,
+    ) -> Result<Array1<usize>, SomError> {
+        if !self.trained {
+            return Err(SomError::NotFitted("predict_clustered_refined"));
+        }
+
+        // ── Step 1: BMU assignment + hit counts ─────────────────────────── //
+        let bmu_indices = self.predict(data)?;
+        let n_neurons   = self.m * self.n;
+        let mut hit_counts = vec![0u64; n_neurons];
+        for &bmu in bmu_indices.iter() {
+            hit_counts[bmu] += 1;
+        }
+
+        // ── Step 2: KMeans on neurons → cluster assignment ───────────────── //
+        let mut km_neu = KMeansBuilder::new()
+            .n_clusters(k)
+            .method(KMeansInit::PlusPlus)
+            .max_iters(300)
+            .build();
+        km_neu.fit(&self.neurons.view())?;
+        let neuron_clusters = km_neu.predict(&self.neurons.view())?;
+
+        // ── Step 3: Data-space centroids (one E-step on raw data) ─────────── //
+        //
+        // Each data point's BMU → neuron cluster → cluster id.
+        // We compute the mean of the raw data points in each cluster.
+        // This puts the seeds directly in data space rather than in neuron
+        // space, avoiding topology-distortion artefacts that neuron-weight
+        // averages carry when the SOM hasn't fully unfolded (small datasets,
+        // few epochs).
+        let d = self.dim;
+        let mut centroids       = Array2::<f64>::zeros((k, d));
+        let mut cluster_counts  = vec![0usize; k];
+        for (i, &bmu) in bmu_indices.iter().enumerate() {
+            let cluster = neuron_clusters[bmu];
+            for dim in 0..d {
+                centroids[[cluster, dim]] += data[[i, dim]];
+            }
+            cluster_counts[cluster] += 1;
+        }
+        // If any cluster has no assigned points, fall back to the hit-count-
+        // weighted neuron-space centroid so the seed is never a zero vector.
+        let mut fallback_needed = false;
+        for c in 0..k {
+            if cluster_counts[c] > 0 {
+                for dim in 0..d {
+                    centroids[[c, dim]] /= cluster_counts[c] as f64;
+                }
+            } else {
+                fallback_needed = true;
+            }
+        }
+        if fallback_needed {
+            let mut neuron_weights  = Array2::<f64>::zeros((k, d));
+            let mut neuron_w_sums   = vec![0.0f64; k];
+            for (j, &cluster) in neuron_clusters.iter().enumerate() {
+                let w = (hit_counts[j] as f64).max(0.5);
+                for dim in 0..d {
+                    neuron_weights[[cluster, dim]] += w * self.neurons[[j, dim]];
+                }
+                neuron_w_sums[cluster] += w;
+            }
+            for c in 0..k {
+                if cluster_counts[c] == 0 && neuron_w_sums[c] > 0.0 {
+                    for dim in 0..d {
+                        centroids[[c, dim]] = neuron_weights[[c, dim]] / neuron_w_sums[c];
+                    }
+                }
+            }
+        }
+
+        // ── Step 4: Refine with KMeans on raw data ───────────────────────── //
+        //
+        // Run two candidates:
+        //   (a) SOM-seeded: starts from the data-space centroids computed above.
+        //   (b) Fresh KMeans++: standard random re-initialisation.
+        // Keep whichever reaches lower inertia, so the SOM seeding helps when
+        // the topology is good but never hurts when nearby clusters in the SOM
+        // neuron space happen to be merged by the neuron-cluster step.
+        let mut km_som = KMeansBuilder::new()
+            .n_clusters(k)
+            .max_iters(300)
+            .build();
+        km_som.fit_with_centroids(data, centroids)?;
+        let inertia_som = km_som.inertia().unwrap_or(f64::INFINITY);
+
+        let mut km_pp = KMeansBuilder::new()
+            .n_clusters(k)
+            .method(KMeansInit::PlusPlus)
+            .max_iters(300)
+            .build();
+        km_pp.fit(data)?;
+        let inertia_pp = km_pp.inertia().unwrap_or(f64::INFINITY);
+
+        if inertia_som <= inertia_pp {
+            km_som.predict(data)
+        } else {
+            km_pp.predict(data)
+        }
+    }
+
     /// Two-phase SOM clustering: cluster the neuron weight vectors with
     /// KMeans(k), then map each data point through its BMU to the neuron's
     /// cluster label.  This produces exactly `k` clusters instead of `m*n`
     /// neuron indices.
+    ///
+    /// For most use-cases prefer `predict_clustered_refined` which eliminates
+    /// the neuron-quantisation error by running KMeans on the raw data.
     pub fn predict_clustered(
         &self,
         data: &ArrayView2<f64>,
