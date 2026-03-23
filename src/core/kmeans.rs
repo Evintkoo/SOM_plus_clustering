@@ -186,6 +186,40 @@ impl KMeans {
         Ok(self.assign(data, &cents.view()))
     }
 
+    /// Fit using externally provided initial centroids, skipping initialization.
+    ///
+    /// Runs Lloyd iterations from `initial` rather than from a random/KMeans++
+    /// seed. Useful when centroids are computed by an upstream algorithm (e.g.
+    /// the SOM-TSK pipeline).
+    pub fn fit_with_centroids(
+        &mut self,
+        data:    &ArrayView2<f64>,
+        initial: Array2<f64>,
+    ) -> Result<(), SomError> {
+        if self.centroids.is_some() {
+            return Err(SomError::AlreadyFitted);
+        }
+        let mut cents = initial;
+        let mut prev_inertia = f64::INFINITY;
+        let mut iter = 0;
+        for _ in 0..self.max_iters {
+            iter += 1;
+            let labels    = self.assign(data, &cents.view());
+            let new_cents = self.update(data, &labels, &cents.view());
+            let shift     = (&new_cents - &cents).mapv(|x| x * x).sum().sqrt();
+            cents         = new_cents;
+            let inert     = self.compute_inertia(data, &labels, &cents.view());
+            let converged = shift < self.tol || (prev_inertia - inert).abs() < self.tol;
+            prev_inertia  = inert;
+            if converged { break; }
+        }
+        let final_labels = self.assign(data, &cents.view());
+        self.inertia.set(self.compute_inertia(data, &final_labels, &cents.view()));
+        self.n_iter.set(iter);
+        self.centroids = Some(cents);
+        Ok(())
+    }
+
     /// Returns the fitted centroids.
     ///
     /// # Panics
