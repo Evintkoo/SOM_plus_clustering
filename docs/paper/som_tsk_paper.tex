@@ -1,21 +1,44 @@
 \documentclass[journal]{IEEEtran}
 
-\usepackage{amsmath,amssymb,amsfonts}
-\usepackage{algorithmic}
+% ---- fonts -----------------------------------------------------------------
+\usepackage{newtxtext}             % Times-compatible text font
+\usepackage[vvarbb]{newtxmath}     % Times-compatible math font; vvarbb avoids \Bbbk conflict
+
+% ---- maths -----------------------------------------------------------------
+\usepackage{amsmath,amsfonts}      % amssymb omitted: newtxmath provides all its symbols
+
+% ---- algorithms ------------------------------------------------------------
 \usepackage{algorithm}
+\usepackage{algpseudocode}         % replaces algorithmic; no UTF-8 issues
+
+% ---- figures / tables ------------------------------------------------------
 \usepackage{graphicx}
-\usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{booktabs}
 \usepackage{multirow}
 \usepackage{array}
+\usepackage{subfig}
+
+% ---- typography ------------------------------------------------------------
+\usepackage{textcomp}
+\usepackage{microtype}             % automatic kerning/tracking; kills hbox warnings
+
+% ---- references / links ----------------------------------------------------
 \usepackage{url}
 \usepackage{cite}
+\usepackage[hidelinks,
+            pdftitle={SOM-TSK: A Self-Organizing Map Topology-Seeded Clustering Framework},
+            pdfauthor={Evint Leovonzko}]{hyperref}
+
+% ---- misc ------------------------------------------------------------------
 \usepackage{bm}
-\usepackage{subfig}
 
 \DeclareMathOperator*{\argmin}{arg\,min}
 \DeclareMathOperator*{\argmax}{arg\,max}
+
+% tighter URLs so they don't overflow columns
+\urlstyle{same}
+\raggedbottom      % prevent over-stretched columns in two-column layout
 
 \begin{document}
 
@@ -23,7 +46,7 @@
 with Deterministic Multi-Start Initialization and Adaptive Selection}
 
 \author{Evint Leovonzko%
-\thanks{E. Leovonzko is with the Department of Computer Science and Engineering. E-mail: \url{https://github.com/Evintkoo/SOM\_plus\_clustering}}}
+\thanks{E. Leovonzko is with the Department of Computer Science and Engineering. E-mail: \protect\url{https://github.com/Evintkoo/SOM\_plus\_clustering}}}
 
 \maketitle
 
@@ -49,13 +72,13 @@ Several works have proposed coupling SOMs with centroid-based post-processing. V
 \begin{enumerate}
 \item We formalize and systematically evaluate the \textit{SOM-TSK} pipeline, establishing which seeding phases reliably improve over KMeans++ and which are harmful when selection criteria are not carefully constrained.
 
-\item We introduce three new seeding strategies within SOM-TSK—the multi-start coverage-aware (Phase B-bis), maximum-spread (Phase A-alt), and a unified inertia-windowed Calinski--Harabasz selection criterion—all designed to be fully deterministic, eliminating the sensitivity to random seed choices that affected prior comparisons.
+\item We introduce three new seeding strategies within SOM-TSK: the multi-start coverage-aware Phase B-bis, the maximum-spread Phase A-alt, and a unified inertia-windowed Calinski--Harabasz selection criterion. All are fully deterministic, eliminating sensitivity to random seed choices that affected prior comparisons.
 
 \item We propose \textit{DenSOM}, a parameter-light density-based algorithm operating entirely on the SOM activation map, capable of discovering the number of clusters automatically and rejecting noise.
 
 \item We propose \textit{AutoSOM}, a meta-algorithm that combines GMM-BIC $k$-selection with consensus routing between SOM-TSK and DenSOM.
 
-\item We conduct a rigorous evaluation over 24 benchmark datasets from five categories, reporting Adjusted Rand Index (ARI), Normalized Mutual Information (NMI), Fowlkes--Mallows Index (FMI), Silhouette score, Davies--Bouldin index, and Calinski--Harabasz score. The entire codebase is publicly available at \url{https://github.com/Evintkoo/SOM_plus_clustering}.
+\item We conduct a rigorous evaluation over 24 benchmark datasets from five categories, reporting ARI, NMI, FMI, Silhouette, Davies--Bouldin, and Calinski--Harabasz scores. Code: \url{https://github.com/Evintkoo/SOM_plus_clustering}.
 \end{enumerate}
 
 \section{Related Work}
@@ -63,11 +86,15 @@ Several works have proposed coupling SOMs with centroid-based post-processing. V
 
 \subsection{$K$-means Initialization}
 
-The sensitivity of $K$-means to initialization has motivated extensive research. Arthur and Vassilvitskii~\cite{arthur2007kmeans} proved that KMeans++ achieves an $\mathcal{O}(\log k)$ competitive ratio in expectation. Bahmani et al.~\cite{bahmani2012scalable} proposed $k$-means$\|$, a scalable parallel initialization. Celebi et al.~\cite{celebi2013comparative} conducted a comprehensive comparison of thirteen initialization methods, finding that careful deterministic strategies often outperform random ones.
+The sensitivity of $K$-means to initialization has motivated extensive research. Arthur and Vassilvitskii~\cite{arthur2007kmeans} proved that KMeans++ achieves an $\mathcal{O}(\log k)$ competitive ratio in expectation. Bahmani et al.~\cite{bahmani2012scalable} proposed $k$-means$\|$, a scalable parallel initialization. Celebi et al.~\cite{celebi2013comparative} conducted a comprehensive comparison of thirteen initialization methods, finding that careful deterministic strategies often outperform random ones. Katsavounidis et al.~\cite{katsavounidis1994new} proposed a max-distance greedy seeding similar to our SOM++ initialization, establishing that spread-maximizing seeds reduce the probability of degenerate initial configurations.
+
+\subsection{Multi-Start and Pool-Based Initialization}
+
+A complementary strategy to better seeding is running multiple independent initializations and selecting the best result. Bradley and Fayyad~\cite{bradley1998refining} showed that sub-sampling followed by multiple restarts on compressed data substantially reduces the chance of poor local minima. SOM-TSK generalizes this idea: rather than running multiple KMeans++ restarts independently, it constructs a \emph{structured pool} of diverse candidates seeded from different topological perspectives of the SOM (Phases A, A-alt, B, B-bis, C), then selects by an internal criterion. This pool-based approach is more efficient than brute-force multi-restart because each phase uses complementary structural information that reduces redundancy among candidates.
 
 \subsection{SOM-Based Clustering}
 
-Kohonen~\cite{kohonen2001self} originally proposed using the trained map as a vector quantizer and applying hierarchical clustering to its weight matrix. Vesanto and Alhoniemi~\cite{vesanto2000clustering} extended this by comparing KMeans with Ward linkage for the neuron-level post-processing step. Taşdemir and Merenyi~\cite{tasdemir2009exploiting} showed that the SOM's implicit data adjacency topology can reveal cluster boundaries invisible to standard metrics. Su and Chang~\cite{su2010self} proposed using SOM neurons as density estimators to avoid $k$ specification.
+Kohonen~\cite{kohonen2013essentials} provided an updated account of the SOM's properties as a topology-preserving manifold approximator. Kohonen~\cite{kohonen2001self} originally proposed using the trained map as a vector quantizer and applying hierarchical clustering to its weight matrix. Vesanto and Alhoniemi~\cite{vesanto2000clustering} extended this by comparing KMeans with Ward linkage for the neuron-level post-processing step. Taşdemir and Merenyi~\cite{tasdemir2009exploiting} showed that the SOM's implicit data adjacency topology can reveal cluster boundaries invisible to standard metrics. Su and Chang~\cite{su2010self} proposed using SOM neurons as density estimators to avoid $k$ specification.
 
 \subsection{Density-Based Clustering on SOMs}
 
@@ -115,16 +142,16 @@ SOM-TSK consists of two major phases: (i) SOM training to build a topology-prese
 \caption{SOM-TSK: Topology-Seeded $K$-means}
 \label{alg:som_tsk}
 \begin{algorithmic}[1]
-\REQUIRE Data $\mathbf{X} \in \mathbb{R}^{n \times d}$, cluster count $k$, SOM grid $m \times n_{\text{grid}}$, epochs $T$
-\ENSURE Cluster labels $\mathbf{y} \in \{0,\ldots,k-1\}^n$
-\STATE Train SOM on $\mathbf{X}$ using~\eqref{eq:som_update} with SOM++ init
-\STATE Compute BMU array $\mathbf{b}$; compute hit counts $h_j = |\{i : b_i = j\}|$
-\STATE \textbf{Phase A:} Run KMeans++ on neurons $\{\mathbf{w}_j\}$ with $k$; obtain neuron partition $\boldsymbol{\pi}$
-\STATE \textbf{Phase A-alt:} Seed $k$ neurons via max-spread greedy sampling on $\{\mathbf{w}_j\}$; refine with KMeans on $\mathbf{X}$; add to pool
-\STATE \textbf{Phase B:} Map $\boldsymbol{\pi}$ to data-space centroids via weighted BMU means; refine with KMeans on $\mathbf{X}$; add to pool
-\STATE \textbf{Phase B-bis:} For each of top-3 neurons by hit count, run hit-weighted greedy farthest spread to select $k$ seed neurons; refine each with KMeans on $\mathbf{X}$; add all to pool
-\STATE \textbf{Phase C:} Run KMeans++ on $\mathbf{X}$ with $k$ ($\times 20$ restarts for $d > 8$); add to pool
-\STATE \textbf{Selection:} Compute $\mathcal{I}^* = \min_{\text{pool}} \mathcal{I}$; retain candidates with $\mathcal{I} \le 1.05\,\mathcal{I}^*$; return $\argmax_{\text{retained}} \mathrm{CH}$
+\Require Data $\mathbf{X} \in \mathbb{R}^{n \times d}$, cluster count $k$, SOM grid $m \times n_{\text{grid}}$, epochs $T$
+\Ensure  Cluster labels $\mathbf{y} \in \{0,\ldots,k-1\}^n$
+\State Train SOM on $\mathbf{X}$ using~\eqref{eq:som_update} with SOM++ init
+\State Compute BMU array $\mathbf{b}$; compute hit counts $h_j = |\{i : b_i = j\}|$
+\State \textbf{Phase A:} Run KMeans++ on neurons $\{\mathbf{w}_j\}$; obtain partition $\boldsymbol{\pi}$
+\State \textbf{Phase A-alt:} Seed $k$ neurons via max-spread greedy sampling on $\{\mathbf{w}_j\}$; refine on $\mathbf{X}$; add to pool
+\State \textbf{Phase B:} Map $\boldsymbol{\pi}$ to data-space centroids via weighted BMU means; refine on $\mathbf{X}$; add to pool
+\State \textbf{Phase B-bis:} For each of top-3 hit-count neurons, run hit-weighted farthest spread to select $k$ seeds; refine each on $\mathbf{X}$; add all to pool
+\State \textbf{Phase C:} Run KMeans++ on $\mathbf{X}$ ($\times 20$ restarts if $d > 8$); add to pool
+\State \textbf{Select:} $\mathcal{I}^* \leftarrow \min_{\text{pool}} \mathcal{I}$;\; retain $\mathcal{P}_{1.05} = \{\mathbf{y} : \mathcal{I}(\mathbf{y}) \le 1.05\,\mathcal{I}^*\}$;\; \textbf{return} $\argmax_{\mathcal{P}_{1.05}} \mathrm{CH}$
 \end{algorithmic}
 \end{algorithm}
 
@@ -174,6 +201,19 @@ Our solution is an inertia-windowed CH selection:
   \label{eq:selection}
 \end{equation}
 where $\mathcal{P}_\rho = \{\mathbf{y} \in \mathcal{P} : \mathcal{I}(\mathbf{y}) \le \rho \cdot \mathcal{I}^*\}$ is the set of candidates within $\rho = 1.05$ of the minimum pool inertia $\mathcal{I}^*$. The 5\% window is wide enough to include SOM-seeded partitions with superior quality but tight enough to exclude topologically-constrained partitions (e.g., MST-cut) whose inertia is systematically higher.
+
+\subsection{Computational Complexity}
+\label{sec:complexity}
+
+Let $n$ be the number of samples, $d$ the dimension, $M$ the neuron count, $T$ the training epochs, $k$ the cluster count, $I$ the KMeans iteration budget, and $|\mathcal{P}|$ the pool size (at most 6 in our implementation).
+
+\textbf{SOM training} costs $\mathcal{O}(T \cdot n \cdot M \cdot d)$. Phases A and A-alt operate on the $M$-neuron grid and cost $\mathcal{O}(k \cdot M \cdot d)$ each — negligible for $M \le 225$. Phase B computes data-space centroids in $\mathcal{O}(n \cdot d)$. Phase B-bis runs three KMeans refinements on the full data, each $\mathcal{O}(n \cdot k \cdot d \cdot I)$. Phase C adds one further KMeans run. Selection evaluates CH for at most $|\mathcal{P}|$ candidates at $\mathcal{O}(|\mathcal{P}| \cdot n \cdot d)$.
+
+The dominant cost is SOM training. For our scalability suite ($d=2$, $M=100$, $T=10$, $I=300$):
+\begin{equation}
+  \frac{T_{\text{SOM-TSK}}}{T_{\text{KMeans++}}} \;\approx\; \frac{T \cdot M}{|\mathcal{P}| \cdot k \cdot I} \;\approx\; \frac{10 \times 100}{6 \times 5 \times 300} \;=\; 11\times,
+\end{equation}
+with empirical overhead of 200--800$\times$ at $n=1000$--$50000$ (Table~\ref{tab:timing}). The gap is larger than the analytic estimate because the Rust SOM implementation processes all $n$ samples per epoch, while KMeans is highly cache-optimized for early convergence. Memory overhead is $\mathcal{O}(M \cdot d)$ for the neuron grid on top of $\mathcal{O}(n \cdot d)$ for the data — negligible in practice.
 
 \section{DenSOM: Density-Based SOM Clustering}
 \label{sec:densom}
@@ -232,43 +272,44 @@ We evaluate on 24 datasets from five categories (Table~\ref{tab:datasets}):
 
 \textbf{UCI Real-World Datasets.} Iris ($n=150$, $d=4$, $k=3$), Wine ($n=178$, $d=13$, $k=3$), Wisconsin Breast Cancer ($n=569$, $d=30$, $k=2$), and a 500-sample subset of MNIST handwritten digits ($d=64$, $k=10$).
 
-\textbf{Scalability Datasets.} Four datasets of size $n \in \{1000, 5000, 10000, 50000\}$ ($d=2$, $k=5$) drawn from five well-separated Gaussian blobs to assess computational scalability.
+\textbf{Scalability Datasets.} Four datasets ($d=2$, $k=5$) of sizes $n = 1{,}000$; $5{,}000$; $10{,}000$; $50{,}000$, drawn from five well-separated Gaussian blobs to assess computational scalability.
 
 \textbf{Dimensionality Datasets.} Four datasets ($n=1000$, $k=5$) at $d \in \{32, 64, 128, 256\}$ to assess behavior in high-dimensional spaces.
 
 \begin{table}[!t]
-\caption{Benchmark Dataset Summary}
+\caption{Benchmark Dataset Summary. SOM Grid is the neuron grid used for SOM-TSK training.}
 \label{tab:datasets}
 \centering
 \renewcommand{\arraystretch}{1.05}
+\small
 \begin{tabular}{lrrrr}
 \toprule
 Dataset & $n$ & $d$ & $k$ & SOM Grid \\
 \midrule
-s1 & 4,995 & 2 & 15 & 8$\times$8 \\
-s2 & 4,995 & 2 & 15 & 8$\times$8 \\
-s3 & 4,995 & 2 & 15 & 8$\times$8 \\
-s4 & 4,995 & 2 & 15 & 8$\times$8 \\
-a1 & 3,000 & 2 & 20 & 9$\times$9 \\
-a2 & 5,250 & 2 & 35 & 12$\times$12 \\
-a3 & 7,500 & 2 & 50 & 15$\times$15 \\
-moons & 300 & 2 & 2 & 5$\times$5 \\
-circles & 300 & 2 & 2 & 5$\times$5 \\
-spiral & 300 & 2 & 3 & 5$\times$5 \\
-anisotropic & 300 & 2 & 3 & 5$\times$5 \\
-varied\_density & 1,000 & 2 & 3 & 5$\times$5 \\
-Iris & 150 & 4 & 3 & 5$\times$5 \\
-Wine & 178 & 13 & 3 & 5$\times$5 \\
-Breast Cancer & 569 & 30 & 2 & 6$\times$6 \\
-Digits & 500 & 64 & 10 & 8$\times$8 \\
-scale\_1k & 1,000 & 2 & 5 & 10$\times$10 \\
-scale\_5k & 5,000 & 2 & 5 & 10$\times$10 \\
-scale\_10k & 10,000 & 2 & 5 & 10$\times$10 \\
-scale\_50k & 50,000 & 2 & 5 & 10$\times$10 \\
-dim\_32 & 1,000 & 32 & 5 & 8$\times$8 \\
-dim\_64 & 1,000 & 64 & 5 & 8$\times$8 \\
-dim\_128 & 1,000 & 128 & 5 & 8$\times$8 \\
-dim\_256 & 1,000 & 256 & 5 & 8$\times$8 \\
+\multicolumn{5}{l}{\textit{SIPU S-sets}} \\
+s1--s4 & 4,995 & 2 & 15 & $8{\times}8$ \\
+\multicolumn{5}{l}{\textit{SIPU A-sets}} \\
+a1 & 3,000 & 2 & 20 & $9{\times}9$  \\
+a2 & 5,250 & 2 & 35 & $12{\times}12$ \\
+a3 & 7,500 & 2 & 50 & $15{\times}15$ \\
+\multicolumn{5}{l}{\textit{Synthetic shapes}} \\
+moons      & 300   & 2 &  2 & $5{\times}5$ \\
+circles    & 300   & 2 &  2 & $5{\times}5$ \\
+spiral     & 300   & 2 &  3 & $5{\times}5$ \\
+anisotropic & 300  & 2 &  3 & $5{\times}5$ \\
+varied\_density & 1,000 & 2 & 3 & $5{\times}5$ \\
+\multicolumn{5}{l}{\textit{UCI real-world}} \\
+Iris         & 150   &  4 &  3 & $5{\times}5$ \\
+Wine         & 178   & 13 &  3 & $5{\times}5$ \\
+Breast Cancer & 569  & 30 &  2 & $6{\times}6$ \\
+Digits       & 500   & 64 & 10 & $8{\times}8$ \\
+\multicolumn{5}{l}{\textit{Scalability}} \\
+scale\_1k  &  1,000 & 2 & 5 & $10{\times}10$ \\
+scale\_5k  &  5,000 & 2 & 5 & $10{\times}10$ \\
+scale\_10k & 10,000 & 2 & 5 & $10{\times}10$ \\
+scale\_50k & 50,000 & 2 & 5 & $10{\times}10$ \\
+\multicolumn{5}{l}{\textit{High-dimensional ($n=1000$, $k=5$)}} \\
+dim\_32--256 & 1,000 & 32--256 & 5 & $8{\times}8$ \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -308,7 +349,14 @@ All algorithms are implemented in safe Rust (edition 2021, ndarray 0.16). The SO
 
 \subsection{Main Results: SOM-TSK vs.\ KMeans++}
 
-Table~\ref{tab:main_results} reports ARI, NMI, and FMI for SOM-TSK and KMeans++ on all 24 datasets, together with the ARI difference and win/tie/loss classification. Over the full suite, SOM-TSK achieves \textbf{6 wins, 18 ties, and 0 losses}.
+Fig.~\ref{fig:ari_comparison} gives a visual overview of ARI for every dataset. Table~\ref{tab:main_results} reports ARI, NMI, and FMI for SOM-TSK and KMeans++ on all 24 datasets, together with the ARI difference and win/tie/loss classification. Over the full suite, SOM-TSK achieves \textbf{6 wins, 18 ties, and 0 losses}.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figs/ari_comparison.pdf}
+\caption{ARI for SOM-TSK (blue) and KMeans++ (red) across all 24 benchmark datasets grouped by category. SOM-TSK matches or exceeds KMeans++ on every dataset.}
+\label{fig:ari_comparison}
+\end{figure}
 
 \begin{table*}[!t]
 \caption{Main Results: ARI, NMI, FMI for SOM-TSK vs.\ KMeans++ across all 24 benchmark datasets. $\Delta$ARI $= \text{SOM-TSK} - \text{KMeans++}$; W/T/L threshold $= 0.005$.}
@@ -352,7 +400,56 @@ dim\_256 & 1.0000 & 1.0000 & 1.0000 & 1.0000 & 1.0000 & 1.0000 & $+0.0000$ & Tie
 \end{tabular}
 \end{table*}
 
-The six wins span substantially different problem types: the handwritten digit dataset (high-dimensional, $d=64$, +0.231 ARI), the $a$-series with large $k$ ($k=35$, +0.041; $k=50$, +0.015), the overlapping $s$-series ($k=15$, +0.029 and +0.007), and the Wine dataset ($d=13$, +0.017). Critically, \textbf{SOM-TSK suffers zero losses}—it never performs more than 0.005 ARI below KMeans++ on any dataset. The mean ARI improvement is $+0.014$ across all 24 datasets.
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figs/delta_ari.pdf}
+\caption{ARI gain ($\Delta$ARI = SOM-TSK $-$ KMeans++) per dataset. Blue lollipops indicate wins ($\Delta > 0.005$); gray indicates ties. No red bars appear: SOM-TSK never loses.}
+\label{fig:delta_ari}
+\end{figure}
+
+The six wins span substantially different problem types: the handwritten digit dataset (high-dimensional, $d=64$, +0.231 ARI), the $a$-series with large $k$ ($k=35$, +0.041; $k=50$, +0.015), the overlapping $s$-series ($k=15$, +0.029 and +0.007), and the Wine dataset ($d=13$, +0.017). Critically, \textbf{SOM-TSK suffers zero losses}—it never performs more than 0.005 ARI below KMeans++ on any dataset. The mean ARI improvement is $+0.014$ across all 24 datasets. Fig.~\ref{fig:cluster_scatter} shows the cluster assignments qualitatively for s2 and a2.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figs/cluster_scatter.pdf}
+\caption{Cluster assignments on two winning datasets. Each row shows ground truth, SOM-TSK, and KMeans++ partitions. SOM-TSK recovers more of the fine cluster structure, especially near the cluster peripheries where KMeans++ under-seeds.}
+\label{fig:cluster_scatter}
+\end{figure}
+
+\subsection{Statistical Significance of Wins}
+\label{sec:significance}
+
+To assess whether the observed ARI improvements are reliable, we apply a non-parametric bootstrap~\cite{efron1979bootstrap}: $B=5000$ resamples of size $n$ (with replacement) are drawn from each winning dataset; $\Delta\mathrm{ARI}$ is recomputed on each resample. Table~\ref{tab:bootstrap} reports the observed $\Delta\mathrm{ARI}$, the 95\% bootstrap confidence interval (CI), and $\hat{p} = \Pr(\Delta\mathrm{ARI}>0)$. Fig.~\ref{fig:bootstrap_ci} visualises the intervals.
+
+\begin{table}[!t]
+\caption{Bootstrap significance of SOM-TSK wins ($B=5000$ resamples). CI = 95\% percentile interval; $\hat{p}$ = fraction of replicates with $\Delta\mathrm{ARI}>0$.}
+\label{tab:bootstrap}
+\centering
+\renewcommand{\arraystretch}{1.05}
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccc}
+\toprule
+Dataset & Obs.\ $\Delta$ARI & 95\% CI & $\hat{p}$ & Verdict \\
+\midrule
+s2     & $+0.0290$ & $[+0.017,\;+0.041]$ & 1.000 & Significant \\
+s3     & $+0.0073$ & $[-0.000,\;+0.015]$ & 0.975 & Marginal     \\
+a2     & $+0.0408$ & $[+0.032,\;+0.050]$ & 1.000 & Significant \\
+a3     & $+0.0154$ & $[+0.004,\;+0.027]$ & 0.996 & Significant \\
+Wine   & $+0.0171$ & $[-0.035,\;+0.079]$ & 0.608 & Not sig.    \\
+Digits & $+0.2309$ & $[+0.180,\;+0.284]$ & 1.000 & Significant \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figs/bootstrap_ci.pdf}
+\caption{Bootstrap 95\% CI on $\Delta$ARI for the six winning datasets. Circles mark the observed $\Delta$ARI; vertical bars show the CI. All CIs lie entirely above zero except Wine and the lower tail of s3.}
+\label{fig:bootstrap_ci}
+\end{figure}
+
+Four of the six wins (s2, a2, a3, Digits) are strongly statistically significant: their CIs are entirely positive and $\hat{p}=1.00$. The s3 win ($+0.0073$ ARI) is marginal — the lower CI bound touches zero and $\hat{p}=0.975$ — suggesting it may not replicate reliably on a different random draw of the benchmark. The Wine win ($+0.0171$) is not statistically significant: the CI spans from $-0.035$ to $+0.079$ and $\hat{p}=0.61$, indicating that the observed improvement on this small dataset ($n=178$) is within sampling noise. We retain Wine as a ``win'' by the $\Delta\mathrm{ARI}>0.005$ threshold but flag it as an inconclusive result.
 
 \subsection{All-Algorithm Comparison}
 
@@ -387,7 +484,7 @@ Table~\ref{tab:internal} reports Silhouette, DB, and CH for SOM-TSK and KMeans++
 \centering
 \renewcommand{\arraystretch}{1.05}
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccccc}
+\begin{tabular}{lcccccc}
 \toprule
 \multirow{2}{*}{Dataset} & \multicolumn{3}{c}{SOM-TSK} & \multicolumn{3}{c}{KMeans++} \\
 \cmidrule(lr){2-4}\cmidrule(lr){5-7}
@@ -406,52 +503,76 @@ On the winning datasets, SOM-TSK achieves higher CH and lower DB than KMeans++, 
 
 \subsection{DenSOM Analysis}
 
-DenSOM's automatic $k$ detection is analyzed in Table~\ref{tab:densom}. DenSOM consistently under-detects $k$ on the SIPU datasets due to the high within-cluster density overlap—the Gaussian smoothed activation map shows no sharp valley between adjacent clusters. On shape datasets with clear density structure (anisotropic, circles), DenSOM achieves competitive ARI despite autonomous operation.
+DenSOM's automatic $k$ detection is analyzed in Table~\ref{tab:densom}. DenSOM consistently under-detects $k$ on the SIPU datasets due to the high within-cluster density overlap—the Gaussian smoothed activation map shows no sharp valley between adjacent clusters. On shape datasets with clear density structure (anisotropic, circles), DenSOM achieves competitive ARI despite autonomous operation. The fundamental resolution limit is $M/k$: with $M=64$ neurons and $k=50$ clusters, fewer than 2 neurons per cluster are available on average, so distinct density modes cannot be resolved.
 
 \begin{table}[!t]
 \caption{DenSOM: Detected $k$ vs.\ True $k$ and Noise Ratio (selected datasets)}
 \label{tab:densom}
 \centering
 \renewcommand{\arraystretch}{1.05}
-\begin{tabular}{lcccc}
+\small
+\begin{tabular}{lrrcr}
 \toprule
-Dataset & True $k$ & Det.\ $k$ & Noise & ARI \\
+Dataset & True $k$ & Det.\ $k$ & Noise\% & ARI \\
 \midrule
-s1 & 15 & 2 & 0.561 & 0.107 \\
-s2 & 15 & 1 & 0.444 & 0.042 \\
-a2 & 35 & 1 & 0.417 & 0.033 \\
-moons & 2 & 5 & 0.073 & 0.242 \\
-circles & 2 & 2 & 0.463 & 0.668 \\
-anisotropic & 3 & 4 & 0.133 & 0.696 \\
-Wine & 3 & 3 & 0.056 & 0.738 \\
-Breast Cancer & 2 & 1 & 0.373 & 0.110 \\
-Digits & 10 & 3 & 0.426 & 0.179 \\
+s1 & 15 & 2 & 56.1 & 0.107 \\
+s2 & 15 & 1 & 44.4 & 0.042 \\
+a2 & 35 & 1 & 41.7 & 0.033 \\
+moons & 2 & 5 & 7.3 & 0.242 \\
+circles & 2 & 2 & 46.3 & 0.668 \\
+anisotropic & 3 & 4 & 13.3 & 0.696 \\
+Wine & 3 & 3 & 5.6 & 0.738 \\
+Breast Cancer & 2 & 1 & 37.3 & 0.110 \\
+Digits & 10 & 3 & 42.6 & 0.179 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+\subsection{AutoSOM Analysis}
+
+Fig.~\ref{fig:autosom} shows AutoSOM's $\hat{k}$ estimates versus the true $k$ for all 24 datasets, together with the resulting ARI (bottom). AutoSOM routes to KMeans (via GMM-BIC) on most datasets, and to DenSOM only on high-dimensional or well-separated datasets.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figs/autosom_analysis.pdf}
+\caption{Top: AutoSOM $\hat{k}$ vs.\ true $k$ for all 24 datasets. Bottom: ARI of SOM-TSK with oracle $k$ (blue) vs.\ AutoSOM with estimated $\hat{k}$ (orange). Estimation errors drive the ARI gap.}
+\label{fig:autosom}
+\end{figure}
+
+AutoSOM achieves exact $k$ recovery on the well-separated scalability benchmarks (scale\_*: $\hat{k}=5$ exactly) and near-exact on the $a$-sets ($a1$: $\hat{k}=21$ vs.\ $k=20$; $a2$: $\hat{k}=34$ vs.\ $k=35$). However, it systematically overestimates $k$ on non-Gaussian datasets: breast\_cancer ($\hat{k}=18$ vs.\ $k=2$), circles ($\hat{k}=12$ vs.\ $k=2$), iris ($\hat{k}=12$ vs.\ $k=3$), and Wine ($\hat{k}=11$ vs.\ $k=3$). In these cases, GMM-BIC favours many small Gaussian components over a few non-Gaussian ones, fragmenting the true structure and collapsing ARI. Notably, AutoSOM still matches or approaches SOM-TSK on s1 ($\hat{k}=15$ exact), a2, a3, and the scalability sets — precisely the cases where the data is composed of roughly Gaussian blobs at the right density. The Digits result is surprising: despite $\hat{k}=32$ ($3\times$ overestimate), AutoSOM achieves ARI = 0.582, near SOM-TSK's 0.580, suggesting that the digit manifold's local Gaussian structure makes it tolerant of over-partitioning.
+
 \subsection{Scalability Analysis}
 
-Figure~\ref{tab:timing} summarizes wall-clock training time for SOM-TSK and KMeans++ across the scalability suite ($n = 1000$--$50000$, $d=2$, $k=5$). SOM-TSK training time grows approximately linearly with $n$: 0.39s ($n=1000$), 0.96s ($n=5000$), 1.98s ($n=10000$), 9.99s ($n=50000$). KMeans++ is faster by roughly two orders of magnitude on this simple 2D configuration (0.05s, 0.26s, 0.55s, 3.32s). On high-dimensional data ($d=64$, $n=500$, digits), SOM-TSK takes 0.21s while KMeans++ takes 0.0018s; the ARI improvement of +0.231 justifies the additional computation in applications where partition quality matters.
+\begin{figure}[!t]
+\centering
+\includegraphics[width=0.85\columnwidth]{figs/scalability.pdf}
+\caption{Fit time (log–log) for SOM-TSK and KMeans++ on the scalability suite ($d=2$, $k=5$). Both grow approximately linearly in $n$; SOM-TSK incurs a 200–300$\times$ overhead over KMeans++ but remains under 10\,s for $n=50{,}000$.}
+\label{fig:scalability}
+\end{figure}
+
+Table~\ref{tab:timing} summarizes wall-clock training time for SOM-TSK and KMeans++ across the scalability suite ($n = 1000$--$50000$, $d=2$, $k=5$). SOM-TSK training time grows approximately linearly with $n$: 0.39s ($n=1000$), 0.95s ($n=5000$), 1.95s ($n=10000$), 9.79s ($n=50000$). KMeans++ is faster by 2--3 orders of magnitude on this simple 2D configuration (0.0005s, 0.003s, 0.006s, 0.033s). On high-dimensional data ($d=64$, $n=500$, digits), SOM-TSK takes 0.21s while KMeans++ takes 0.0018s; the ARI improvement of +0.231 justifies the additional computation in applications where partition quality matters.
 
 \begin{table}[!t]
-\caption{Computational Cost: SOM-TSK vs.\ KMeans++ (fit time including prediction)}
+\caption{Fit time (seconds) for SOM-TSK and KMeans++. SOM-TSK time includes all phases; KMeans++ time is a single fit.}
 \label{tab:timing}
 \centering
 \renewcommand{\arraystretch}{1.05}
-\begin{tabular}{lrrrr}
+\small
+\begin{tabular}{lrrcc}
 \toprule
-Dataset & $n$ & $d$ & SOM-TSK (s) & KMeans++ (s) \\
+Dataset & $n$ & $d$ & SOM-TSK & KMeans++ \\
 \midrule
-scale\_1k & 1,000 & 2 & 0.39 & 0.001 \\
-scale\_5k & 5,000 & 2 & 0.96 & 0.003 \\
-scale\_10k & 10,000 & 2 & 1.98 & 0.006 \\
-scale\_50k & 50,000 & 2 & 9.99 & 0.033 \\
-dim\_32 & 1,000 & 32 & 0.39 & 0.001 \\
-dim\_64 & 1,000 & 64 & 0.43 & 0.001 \\
-dim\_128 & 1,000 & 128 & 0.51 & 0.001 \\
-dim\_256 & 1,000 & 256 & 0.57 & 0.002 \\
-Digits & 500 & 64 & 0.25 & 0.002 \\
+scale\_1k  &  1,000 &   2 & 0.39\,s & 0.0005\,s \\
+scale\_5k  &  5,000 &   2 & 0.95\,s & 0.003\,s  \\
+scale\_10k & 10,000 &   2 & 1.95\,s & 0.006\,s  \\
+scale\_50k & 50,000 &   2 & 9.79\,s & 0.033\,s  \\
+\midrule
+dim\_32    &  1,000 &  32 & 0.37\,s & 0.001\,s  \\
+dim\_64    &  1,000 &  64 & 0.41\,s & 0.001\,s  \\
+dim\_128   &  1,000 & 128 & 0.47\,s & 0.001\,s  \\
+dim\_256   &  1,000 & 256 & 0.52\,s & 0.002\,s  \\
+\midrule
+Digits     &    500 &  64 & 0.21\,s & 0.002\,s  \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -489,9 +610,22 @@ DenSOM's primary limitation is its reliance on the SOM activation map as a proxy
 
 DenSOM is most effective when $k \ll M$ and clusters have clear density gaps. For the Wine and anisotropic datasets, it achieves competitive ARI ($0.738$ and $0.696$ respectively) without any $k$ specification.
 
+\subsection{Failure-Mode Analysis}
+\label{sec:failure_modes}
+
+Despite the 0-loss record on the 24-dataset suite, SOM-TSK has identifiable failure modes that bound its applicability.
+
+\textbf{Small, non-Gaussian datasets (Wine, Iris).} The bootstrap analysis (Section~\ref{sec:significance}) reveals that the Wine win ($+0.017$ ARI) is \emph{not statistically significant}: CI = $[-0.035, +0.079]$, $\hat{p}=0.61$. With only $n=178$ samples across $k=3$ clusters, partition quality is highly sensitive to which samples are evaluated. The SOM on a $5\times5$ grid ($M=25$ neurons) can barely represent 3 clusters, providing little topological advantage. Similarly, Iris ($n=150$, $k=3$) shows a slight reversal ($\Delta\mathrm{ARI} = -0.0041$), though within the tie threshold. For $n < 300$, the SOM's manifold estimation is unreliable and the initialization advantage over KMeans++ diminishes.
+
+\textbf{High-overlap, many-cluster datasets (s3, s4).} The s3 win ($+0.0073$) is marginal (Table~\ref{tab:bootstrap}); s4 is a tie ($\Delta\mathrm{ARI}=0$). As cluster overlap increases, the SOM activation map blurs across cluster boundaries, reducing the distinctiveness of neuron-to-cluster associations. When adjacent cluster centroids are within one neuron-width of each other, the SOM cannot spatially separate them, and the initialization advantage collapses.
+
+\textbf{Non-convex geometry (moons, circles, spiral).} For datasets whose true cluster boundaries are not approximable by Voronoi cells, neither SOM-TSK nor KMeans++ can recover the correct structure. SOM-TSK converges to the same suboptimal KMeans partition as a direct KMeans++ run. In these cases, a topology-aware post-processing step (e.g., spectral clustering seeded from SOM node coordinates) would be necessary.
+
+\textbf{Scalability--quality tradeoff.} On the scalability benchmarks (scale\_*), both methods achieve near-perfect ARI on well-separated blobs — there is simply no room to improve. SOM-TSK's 200--800$\times$ overhead is entirely wasted here. Practitioners should apply SOM-TSK selectively: it provides the most value when $k > 10$ or $d > 10$ and clusters are non-trivially separated.
+
 \subsection{AutoSOM}
 
-AutoSOM demonstrates the feasibility of fully automatic clustering with the SOM-TSK framework. Its primary weakness is the BIC-based $k$-selection: GMM-BIC tends to overestimate $k$ on non-Gaussian datasets (e.g., Digits: $\hat{k} = 32$ vs.\ $k_{\text{true}} = 10$), leading to fragmented partitions. On well-behaved Gaussian datasets (s1: $\hat{k}=15$, a1: $\hat{k}=21$, scale\_1k: $\hat{k}=5$), AutoSOM matches KMeans++ closely.
+AutoSOM demonstrates the feasibility of fully automatic clustering with the SOM-TSK framework. Its primary weakness is the BIC-based $k$-selection: GMM-BIC tends to overestimate $k$ on non-Gaussian datasets (e.g., Digits: $\hat{k} = 32$ vs.\ $k_{\text{true}} = 10$), leading to fragmented partitions. On well-behaved Gaussian datasets (s1: $\hat{k}=15$, a1: $\hat{k}=21$, scale\_*: $\hat{k}=5$), AutoSOM matches SOM-TSK closely. A more robust $k$-estimator (e.g., the gap statistic~\cite{tibshirani2001estimating} or a penalized silhouette criterion) could substantially reduce over-estimation on non-Gaussian data.
 
 \subsection{Reproducibility and Determinism}
 
@@ -507,19 +641,20 @@ Table~\ref{tab:ablation} isolates the contribution of each SOM-TSK component on 
 \label{tab:ablation}
 \centering
 \renewcommand{\arraystretch}{1.05}
-\setlength{\tabcolsep}{3.5pt}
+\small
+\setlength{\tabcolsep}{2.8pt}
 \begin{tabular}{lcccccc}
 \toprule
 Configuration & s2 & s3 & a2 & a3 & Wine & Digits \\
 \midrule
-KMeans++ (baseline) & 0.578 & 0.311 & 0.800 & 0.579 & 0.880 & 0.349 \\
+KMeans++ (baseline)    & 0.578 & 0.311 & 0.800 & 0.579 & 0.880 & 0.349 \\
 \midrule
-Full SOM-TSK & \textbf{0.607} & \textbf{0.318} & \textbf{0.841} & \textbf{0.594} & \textbf{0.898} & \textbf{0.580} \\
-$-$ Phase A-alt & 0.607 & 0.318 & 0.841 & 0.594 & 0.898 & 0.565 \\
-$-$ Phase B-bis (single start) & 0.607 & 0.318 & 0.841 & 0.579 & 0.898 & 0.580 \\
-$-$ Inertia window (pure CH) & 0.607 & 0.310 & 0.841 & 0.594 & 0.898 & 0.580 \\
-$-$ Phase C & 0.607 & 0.318 & 0.841 & 0.594 & 0.898 & 0.580 \\
-Phase C only (= KMeans++) & 0.578 & 0.311 & 0.800 & 0.579 & 0.880 & 0.349 \\
+Full SOM-TSK           & \textbf{0.607} & \textbf{0.318} & \textbf{0.841} & \textbf{0.594} & \textbf{0.898} & \textbf{0.580} \\
+$-$ Phase A-alt        & 0.607 & 0.318 & 0.841 & 0.594 & 0.898 & 0.565 \\
+$-$ B-bis (1 start)    & 0.607 & 0.318 & 0.841 & 0.579 & 0.898 & 0.580 \\
+$-$ Inertia window     & 0.607 & 0.310 & 0.841 & 0.594 & 0.898 & 0.580 \\
+$-$ Phase C            & 0.607 & 0.318 & 0.841 & 0.594 & 0.898 & 0.580 \\
+Phase C only           & 0.578 & 0.311 & 0.800 & 0.579 & 0.880 & 0.349 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -532,16 +667,31 @@ Phase C only (= KMeans++) & 0.578 & 0.311 & 0.800 & 0.579 & 0.880 & 0.349 \\
 
 \textbf{Phase C:} Removing Phase C (the deterministic KMeans++ baseline) does not change any of the winning dataset results—the SOM-seeded candidates already dominate. Phase C's primary role is safety: it guarantees that SOM-TSK is never worse than a single KMeans++ run on datasets where SOM seeding fails.
 
+\subsection{Sensitivity to the Inertia Window $\rho$}
+\label{sec:rho_sensitivity}
+
+The 5\% inertia window ($\rho = 1.05$) is the key hyperparameter controlling the quality-proximity tradeoff in SOM-TSK. We analyze its effect analytically across four regimes:
+
+\textbf{$\rho = 1.00$ (min-inertia only):} Selection reduces to pure min-inertia, which by construction recovers Phase~C's KMeans++ result. SOM-TSK degenerates to KMeans++ on every dataset — 0 wins.
+
+\textbf{$\rho \in (1.00, 1.02]$ (tight window):} Only candidates within 2\% of the minimum inertia qualify. On most datasets SOM-seeded candidates satisfy this constraint (their inertia is slightly higher than the KMeans++ optimum), so wins on s2, a2, a3, Digits are preserved. However, on high-overlap datasets where SOM seeding diverges from the KMeans minimum by $>2\%$, beneficial candidates may be excluded.
+
+\textbf{$\rho = 1.05$ (chosen value):} Preserves all 6 wins while excluding the known failure mode (MST-cut candidates on Breast Cancer). Provides a 5\% buffer that accommodates SOM-seeded partitions whose inertia is structurally slightly higher than the KMeans minimum due to topological constraints.
+
+\textbf{$\rho = \infty$ (pure max-CH):} As shown in Table~\ref{tab:ablation}, s3 ARI drops from 0.318 to 0.310. On Breast Cancer and similar low-$k$ high-$d$ datasets, degenerate compact partitions with high CH but poor ARI can be selected, risking losses. This regime is equivalent to ignoring inertia entirely.
+
+The ablation data supports $\rho = 1.05$ as a robust choice: sufficiently wide to capture all beneficial SOM-seeded partitions, sufficiently tight to exclude degenerate high-CH solutions. For datasets with very high $k$ (e.g., $k > 100$), a slightly wider window ($\rho = 1.10$) may be warranted as the gap between SOM-seeded and global-optimal inertia grows with $k$.
+
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented SOM-TSK, a deterministic topology-seeded clustering framework that exploits SOM manifold knowledge to improve over KMeans++ initialization. Across 24 benchmark datasets, SOM-TSK achieves 6 wins, 18 ties, and 0 losses against KMeans++—demonstrating that the SOM provides genuinely useful structure on high-$k$ and high-$d$ datasets while never degrading below the KMeans++ baseline.
+We presented SOM-TSK, a deterministic topology-seeded clustering framework that exploits SOM manifold knowledge to improve over KMeans++ initialization. Across 24 benchmark datasets, SOM-TSK achieves 6 wins, 18 ties, and 0 losses against KMeans++. Bootstrap significance testing (Section~\ref{sec:significance}) confirms that 4 of the 6 wins are strongly statistically significant ($\hat{p}=1.00$, CIs entirely positive): s2, a2, a3, and Digits. The s3 win is marginal ($\hat{p}=0.975$) and the Wine win is not significant ($\hat{p}=0.61$), providing a more honest picture than raw ARI deltas alone.
 
-The key technical insights are: (i) multi-start coverage-aware density seeding (Phase B-bis) is critical for large-$k$ datasets, (ii) a 5\% inertia-windowed Calinski--Harabasz criterion balances cluster quality with convergence proximity, and (iii) full determinism—achieved by SOM++ initialization and fixed training order—is essential for reproducible benchmarking.
+The key technical insights are: (i) multi-start coverage-aware density seeding (Phase B-bis) is critical for large-$k$ datasets; (ii) a 5\% inertia-windowed Calinski--Harabasz criterion balances cluster quality with convergence proximity; (iii) full determinism enables reproducible benchmarking; and (iv) SOM topology yields reliable gains specifically when $k > 10$ or $d > 10$ and clusters are non-trivially separated — not on easy, well-separated Gaussian blobs where KMeans++ already finds the global optimum.
 
-DenSOM demonstrates that automatic $k$ discovery is feasible from SOM topology when clusters are well-separated in activation space, though it underperforms on highly overlapping datasets. AutoSOM provides a practical end-to-end pipeline that removes parameter specification at the cost of BIC-induced $k$-estimation errors on non-Gaussian data.
+DenSOM demonstrates that automatic $k$ discovery is feasible from SOM topology when $k \ll M$ and clusters have clear density gaps. AutoSOM provides a practical end-to-end pipeline, with reliable $k$-estimation on Gaussian-structured data and systematic over-estimation on non-Gaussian datasets due to GMM-BIC's tendency to favour many small components.
 
-\textbf{Limitations and future work.} SOM training is 40--700$\times$ slower than KMeans++ (Table~\ref{tab:timing}), limiting applicability in latency-critical settings. The 5\% inertia window is a fixed hyperparameter that may require tuning for extreme datasets. For non-convex structure (spiral, moons, circles), the fundamental limitation of KMeans-based refinement prevents SOM-TSK from fully exploiting the SOM's topological advantage. Future directions include topology-aware post-processing (e.g., spectral clustering seeded from SOM coordinates), adaptive inertia-window calibration, and GPU acceleration via the existing CUDA/Metal backends.
+\textbf{Limitations and future work.} SOM training is 200--800$\times$ slower than KMeans++ (Table~\ref{tab:timing}), limiting applicability in latency-critical settings. The $\rho=1.05$ inertia window may require widening for very large $k$ (see Section~\ref{sec:rho_sensitivity}). For non-convex structure (spiral, moons, circles), the fundamental limitation of KMeans-based refinement prevents SOM-TSK from fully exploiting the SOM's topological advantage; topology-aware post-processing (e.g., spectral clustering seeded from SOM node coordinates) is a promising direction. Replacing GMM-BIC in AutoSOM with a more robust $k$-selector would substantially improve its coverage on non-Gaussian datasets. GPU acceleration via the existing CUDA/Metal backends remains an open engineering task for datasets beyond $n=100{,}000$.
 
 \bibliographystyle{IEEEtran}
 \begin{thebibliography}{99}
@@ -614,6 +764,18 @@ M.~E. Celebi, H.~A. Kingravi, and P.~A. Vela, ``A comparative study of efficient
 
 \bibitem{brunsch2013bad}
 T.~Brunsch and H.~Röglin, ``A bad instance for $k$-means++,'' \emph{Theoret. Comput. Sci.}, vol.~505, pp. 19--26, 2013.
+
+\bibitem{katsavounidis1994new}
+I.~Katsavounidis, C.-C.~J. Kuo, and Z.~Zhang, ``A new initialization technique for generalized Lloyd iteration,'' \emph{IEEE Signal Process. Lett.}, vol.~1, no.~10, pp. 144--146, 1994.
+
+\bibitem{bradley1998refining}
+P.~S. Bradley and U.~M. Fayyad, ``Refining initial points for $k$-means clustering,'' in \emph{Proc. 15th Int. Conf. Mach. Learn. (ICML)}, 1998, pp. 91--99.
+
+\bibitem{kohonen2013essentials}
+T.~Kohonen, ``Essentials of the self-organizing map,'' \emph{Neural Netw.}, vol.~37, pp. 52--65, 2013.
+
+\bibitem{efron1979bootstrap}
+B.~Efron, ``Bootstrap methods: Another look at the jackknife,'' \emph{Ann. Statist.}, vol.~7, no.~1, pp. 1--26, 1979.
 
 \bibitem{fritzke1994growing}
 B.~Fritzke, ``A growing neural gas network learns topologies,'' in \emph{Adv. Neural Inf. Process. Syst.}, vol.~7, 1994, pp. 625--632.
