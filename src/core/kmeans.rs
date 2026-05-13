@@ -110,10 +110,11 @@ impl KMeans {
             iter += 1;
             let labels = self.assign(data, &cents.view());
             let new_cents = self.update(data, &labels, &cents.view());
-            let shift = (&new_cents - &cents).mapv(|x| x * x).sum().sqrt();
+            // Optimization #8: Use squared distance for convergence check (skip sqrt)
+            let shift_sq = (&new_cents - &cents).mapv(|x| x * x).sum();
             cents = new_cents;
             let inert = self.compute_inertia(data, &labels, &cents.view());
-            let converged = shift < self.tol || (prev_inertia - inert).abs() < self.tol;
+            let converged = shift_sq < self.tol * self.tol || (prev_inertia - inert).abs() < self.tol;
             prev_inertia = inert;
             if converged {
                 break;

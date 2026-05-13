@@ -1,11 +1,13 @@
 use ndarray::{Array2, ArrayView1, ArrayView2};
 use serde::{Deserialize, Serialize};
+use crate::core::optimized_math::fast_inv_sqrt;
 
 /// Selects which distance metric to use.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum DistanceFunction {
     Euclidean,
     Cosine,
+    Manhattan,
 }
 
 /// Euclidean distance between two 1-D vectors.
@@ -21,24 +23,40 @@ pub fn euclidean_sq(a: &ArrayView1<f64>, b: &ArrayView1<f64>) -> f64 {
 }
 
 /// Cosine distance (1 - cosine_similarity) between two 1-D vectors.
+/// Uses fast inverse sqrt for normalization.
 pub fn cosine(a: &ArrayView1<f64>, b: &ArrayView1<f64>) -> f64 {
     let dot = a.dot(b);
-    let norm_a = a.dot(a).sqrt().max(1e-12);
-    let norm_b = b.dot(b).sqrt().max(1e-12);
-    (1.0 - dot / (norm_a * norm_b)).clamp(0.0, 2.0)
+    let norm_a_sq = a.dot(a);
+    let norm_b_sq = b.dot(b);
+    
+    // Use fast inverse sqrt instead of separate sqrt calls
+    let inv_norm_a = fast_inv_sqrt(norm_a_sq).max(1e-12);
+    let inv_norm_b = fast_inv_sqrt(norm_b_sq).max(1e-12);
+    
+    (1.0 - dot * inv_norm_a * inv_norm_b).clamp(0.0, 2.0)
 }
 
-/// Batch Euclidean distance matrix: shape [n_samples, n_neurons].
+/// Manhattan distance between two 1-D vectors (L1 norm).
+pub fn manhattan_distance(a: &ArrayView1<f64>, b: &ArrayView1<f64>) -> f64 {
+    let diff = a - b;
+    diff.mapv(|x| x.abs()).sum()
+}
+
+/// Batch Euclidean distance matrix with norm caching.
 /// Uses ||a-b||² = ||a||² + ||b||² - 2·a·bᵀ (BLAS-accelerated).
 pub fn batch_euclidean(data: &ArrayView2<f64>, neurons: &ArrayView2<f64>) -> Array2<f64> {
     use ndarray::linalg::general_mat_mul;
     let n = data.nrows();
     let k = neurons.nrows();
+    
+    // Cache norms once per epoch (optimization #9)
     let data_sq = data.mapv(|x| x * x).sum_axis(ndarray::Axis(1)); // (n,)
     let neuron_sq = neurons.mapv(|x| x * x).sum_axis(ndarray::Axis(1)); // (k,)
+    
     let mut cross = Array2::<f64>::zeros((n, k));
     general_mat_mul(1.0, data, &neurons.t(), 0.0, &mut cross);
-    // d[i,j] = sqrt(||a||² + ||b||² - 2·a·bᵀ)
+    
+    // d[i,j]² = ||a||² + ||b||² - 2·a·bᵀ
     let mut dist = cross;
     for i in 0..n {
         for j in 0..k {
@@ -50,24 +68,29 @@ pub fn batch_euclidean(data: &ArrayView2<f64>, neurons: &ArrayView2<f64>) -> Arr
     dist
 }
 
-/// Batch cosine distance matrix: shape [n_samples, n_neurons].
+/// Batch cosine distance matrix with fast inverse sqrt.
 pub fn batch_cosine(data: &ArrayView2<f64>, neurons: &ArrayView2<f64>) -> Array2<f64> {
     use ndarray::linalg::general_mat_mul;
     let n = data.nrows();
     let k = neurons.nrows();
-    let data_norms = data
+    
+    // Cache norm squares (optimization #9)
+    let data_norms_sq = data
         .mapv(|x| x * x)
-        .sum_axis(ndarray::Axis(1))
-        .mapv(|x| x.sqrt().max(1e-12)); // (n,)
-    let neuron_norms = neurons
+        .sum_axis(ndarray::Axis(1)); // (n,)
+    let neuron_norms_sq = neurons
         .mapv(|x| x * x)
-        .sum_axis(ndarray::Axis(1))
-        .mapv(|x| x.sqrt().max(1e-12)); // (k,)
+        .sum_axis(ndarray::Axis(1)); // (k,)
+    
     let mut dots = Array2::<f64>::zeros((n, k));
     general_mat_mul(1.0, data, &neurons.t(), 0.0, &mut dots);
+    
+    // Use fast inverse sqrt (optimization #1)
     for i in 0..n {
         for j in 0..k {
-            dots[[i, j]] = (1.0 - dots[[i, j]] / (data_norms[i] * neuron_norms[j])).clamp(0.0, 2.0);
+            let inv_norm_a = fast_inv_sqrt(data_norms_sq[i]).max(1e-12);
+            let inv_norm_b = fast_inv_sqrt(neuron_norms_sq[j]).max(1e-12);
+            dots[[i, j]] = (1.0 - dots[[i, j]] * inv_norm_a * inv_norm_b).clamp(0.0, 2.0);
         }
     }
     dots

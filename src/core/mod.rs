@@ -10,6 +10,7 @@ pub mod som;
 pub mod som_classification;
 pub mod autosom;
 pub mod densom;
+pub mod optimized_math;
 
 /// Bandwidth selection rule for DenSOM's adaptive Gaussian smoothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

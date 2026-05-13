@@ -232,9 +232,9 @@ impl Som {
         if !self.trained {
             self.neurons = self.init_neurons(data)?;
         }
-        // 3. Training loop
+        // 3. Training loop — batched BMU search for O(n/B) GPU dispatches instead of O(n)
         let n = data.nrows();
-        let bs = batch_size.unwrap_or_else(|| (n / 100).max(32).min(n));
+        let bs = batch_size.unwrap_or_else(|| (n / 10).max(64).min(n));
         let total_iters = (epoch * n).min(self.max_iter.unwrap_or(usize::MAX));
         let mut global_iter = 0usize;
         let mut data_owned = data.to_owned();
@@ -251,31 +251,58 @@ impl Som {
             for batch_start in (0..n).step_by(bs) {
                 let batch_end = (batch_start + bs).min(n);
                 let batch = data_owned.slice(ndarray::s![batch_start..batch_end, ..]);
-                for row in 0..batch.nrows() {
+                let batch_owned = batch.to_owned();
+
+                // Batched BMU search — single GPU dispatch for entire batch
+                let dists = backend::batch_distances(
+                    &batch_owned,
+                    &self.neurons,
+                    self.dist_func,
+                    self.backend,
+                )?;
+
+                // Process each sample in the batch
+                for row in 0..batch_owned.nrows() {
                     if global_iter >= total_iters {
                         break 'outer;
                     }
                     global_iter += 1;
-                    let pt = batch.row(row);
-                    let bmu_idx = self.find_bmu(&pt);
+
+                    // BMU from pre-computed distance matrix — O(k) argmin
+                    let bmu_idx = dists.row(row).iter()
+                        .enumerate()
+                        .min_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+                        .unwrap()
+                        .0;
+
                     let bmu_r = bmu_idx / self.n;
                     let bmu_c = bmu_idx % self.n;
-                    let influence = neighborhood::gaussian_grid(
-                        self.m,
-                        self.n,
-                        bmu_r,
-                        bmu_c,
-                        self.cur_lr,
-                        self.cur_rad,
-                    );
-                    // neurons is already [m*n, dim], pass directly (in-place update)
-                    backend::neighborhood_update(
-                        &mut self.neurons,
-                        &pt,
-                        &influence.view(),
-                        self.dist_func,
-                        self.backend,
-                    )?;
+
+                    // Sparse neighborhood: only update neurons within 3σ radius
+                    let cutoff = (3.0 * self.cur_rad).ceil() as i64;
+                    let r2 = (self.cur_rad * self.cur_rad).max(1e-18);
+                    let pt = batch_owned.row(row);
+
+                    let row_min = (bmu_r as i64 - cutoff).max(0) as usize;
+                    let row_max = ((bmu_r as i64 + cutoff) as usize).min(self.m - 1);
+                    let col_min = (bmu_c as i64 - cutoff).max(0) as usize;
+                    let col_max = ((bmu_c as i64 + cutoff) as usize).min(self.n - 1);
+
+                    for nr in row_min..=row_max {
+                        for nc in col_min..=col_max {
+                            let dr = nr as f64 - bmu_r as f64;
+                            let dc = nc as f64 - bmu_c as f64;
+                            let dist_sq = dr * dr + dc * dc;
+                            let h = self.cur_lr * crate::core::optimized_math::fast_exp(-dist_sq / (2.0 * r2));
+                            if h < 1e-8 {
+                                continue;
+                            }
+                            let idx = nr * self.n + nc;
+                            let mut neuron = self.neurons.row_mut(idx);
+                            neuron.zip_mut_with(&pt, |w, &x| *w += h * (x - *w));
+                        }
+                    }
+
                     // Exponential decay
                     let progress = global_iter as f64 / total_iters as f64;
                     self.cur_lr = self.initial_lr * (-5.0 * progress).exp();
@@ -833,6 +860,7 @@ impl Som {
         let dist_func_byte = match self.dist_func {
             DistanceFunction::Euclidean => 0u8,
             DistanceFunction::Cosine => 1u8,
+            DistanceFunction::Manhattan => 2u8,
         };
         let state = crate::serialize::SomState {
             m: self.m,

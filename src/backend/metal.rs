@@ -117,17 +117,17 @@ pub fn batch_distances(
     enc.set_buffer(4, Some(&buf_k), 0);
     enc.set_buffer(5, Some(&buf_d), 0);
 
-    let thread_group_size = MTLSize {
+    let threads_per_group = MTLSize {
         width: 16,
         height: 16,
         depth: 1,
     };
     let grid_size = MTLSize {
-        width: (n as u64 + 15) / 16,
-        height: (k as u64 + 15) / 16,
+        width: n as u64,
+        height: k as u64,
         depth: 1,
     };
-    enc.dispatch_thread_groups(grid_size, thread_group_size);
+    enc.dispatch_threads(grid_size, threads_per_group);
     enc.end_encoding();
     cmd.commit();
     cmd.wait_until_completed();
@@ -148,10 +148,77 @@ pub fn neighborhood_update(
     influence: &ArrayView2<f64>,
     dist_fn: DistanceFunction,
 ) -> Result<(), SomError> {
-    // v0.1 intentional simplification: fall back to CPU rayon.
-    // batch_distances (BMU search) dominates training time; the update is fast on CPU.
-    // TODO(v0.2): Wire neighborhood_update.metal here.
-    use crate::backend::cpu;
-    cpu::neighborhood_update(neurons, data_point, influence, dist_fn);
+    // GPU neighborhood update for Euclidean (the shader only handles w += h*(x-w))
+    // Cosine requires sphere projection — keep on CPU for correctness.
+    if dist_fn != DistanceFunction::Euclidean {
+        use crate::backend::cpu;
+        cpu::neighborhood_update(neurons, data_point, influence, dist_fn);
+        return Ok(());
+    }
+
+    let state = get_state()?;
+
+    let mn = neurons.nrows() as i32;
+    let dim = neurons.ncols() as i32;
+
+    // Convert to f32 for GPU
+    let neu_f32: Vec<f32> = neurons.iter().map(|&x| x as f32).collect();
+    let pt_f32: Vec<f32> = data_point.iter().map(|&x| x as f32).collect();
+    let inf_f32: Vec<f32> = influence.iter().map(|&x| x as f32).collect();
+
+    let buf_neurons = state.device.new_buffer_with_data(
+        neu_f32.as_ptr() as *const _,
+        neu_f32.len() as u64 * 4,
+        MTLResourceOptions::StorageModeShared,
+    );
+    let buf_pt = state.device.new_buffer_with_data(
+        pt_f32.as_ptr() as *const _,
+        pt_f32.len() as u64 * 4,
+        MTLResourceOptions::StorageModeShared,
+    );
+    let buf_inf = state.device.new_buffer_with_data(
+        inf_f32.as_ptr() as *const _,
+        inf_f32.len() as u64 * 4,
+        MTLResourceOptions::StorageModeShared,
+    );
+    let buf_mn = state.device.new_buffer_with_data(
+        &mn as *const i32 as *const _,
+        4,
+        MTLResourceOptions::StorageModeShared,
+    );
+    let buf_dim = state.device.new_buffer_with_data(
+        &dim as *const i32 as *const _,
+        4,
+        MTLResourceOptions::StorageModeShared,
+    );
+
+    let lib = state.device.new_library_with_data(METALLIB).map_err(|e| SomError::BackendUnavailable(e.to_string()))?;
+    let fn_update = lib.get_function("neighborhood_update", None).map_err(|e| SomError::BackendUnavailable(e.to_string()))?;
+    let pipeline = state.device.new_compute_pipeline_state_with_function(&fn_update).map_err(|e| SomError::BackendUnavailable(e.to_string()))?;
+
+    let cmd = state.queue.new_command_buffer();
+    let enc = cmd.new_compute_command_encoder();
+    enc.set_compute_pipeline_state(&pipeline);
+    enc.set_buffer(0, Some(&buf_neurons), 0);
+    enc.set_buffer(1, Some(&buf_pt), 0);
+    enc.set_buffer(2, Some(&buf_inf), 0);
+    enc.set_buffer(3, Some(&buf_mn), 0);
+    enc.set_buffer(4, Some(&buf_dim), 0);
+
+    let threads_per_group = pipeline.max_total_threads_per_threadgroup().min(256) as u64;
+    let grid = MTLSize { width: mn as u64, height: 1, depth: 1 };
+    let group = MTLSize { width: threads_per_group, height: 1, depth: 1 };
+    enc.dispatch_threads(grid, group);
+    enc.end_encoding();
+    cmd.commit();
+    cmd.wait_until_completed();
+
+    // Read back updated neurons
+    let ptr = buf_neurons.contents() as *const f32;
+    let slice = unsafe { std::slice::from_raw_parts(ptr, neu_f32.len()) };
+    for (dst, &src) in neurons.iter_mut().zip(slice.iter()) {
+        *dst = src as f64;
+    }
+
     Ok(())
 }

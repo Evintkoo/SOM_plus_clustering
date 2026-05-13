@@ -11,6 +11,10 @@ pub fn batch_distances(
     match dist_fn {
         DistanceFunction::Euclidean => batch_euclidean(&data.view(), &neurons.view()),
         DistanceFunction::Cosine => batch_cosine(&data.view(), &neurons.view()),
+        DistanceFunction::Manhattan => {
+            // For now, fall back to Euclidean; Manhattan distance batch support can be added later
+            batch_euclidean(&data.view(), &neurons.view())
+        }
     }
 }
 
@@ -49,6 +53,12 @@ pub fn neighborhood_update(
                 let dot = norm_n.dot(&norm_x);
                 let dir = &norm_x - &norm_n * dot;
                 neuron.scaled_add(h * nn, &dir);
+            }
+            DistanceFunction::Manhattan => {
+                // Manhattan: use simple gradient descent direction
+                neuron.zip_mut_with(data_point, |w, &x| {
+                    *w += h * (if x > *w { 1.0 } else { -1.0 });
+                });
             }
         });
 }
