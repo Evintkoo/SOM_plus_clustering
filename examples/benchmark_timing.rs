@@ -70,15 +70,17 @@ fn measure_ms(
         som.set_backend(backend);
 
         let t0 = Instant::now();
-        let fit_ok = runner.install(|| som.fit(&data.view(), epochs, false, None));
-        if fit_ok.is_err() {
-            return None;
+        let result = runner.install(|| -> Result<ndarray::Array1<usize>, _> {
+            som.fit(&data.view(), epochs, false, None)?;
+            som.predict_clustered_refined(&data.view(), k)
+        });
+        match result {
+            Ok(_) => times.push(t0.elapsed().as_secs_f64() * 1000.0),
+            Err(e) => {
+                eprintln!("  [timing] run failed: {e}");
+                return None;
+            }
         }
-        let predict_ok = runner.install(|| som.predict_clustered_refined(&data.view(), k));
-        if predict_ok.is_err() {
-            return None;
-        }
-        times.push(t0.elapsed().as_secs_f64() * 1000.0);
     }
 
     // Discard warmup (index 0)
