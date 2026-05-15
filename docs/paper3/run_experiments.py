@@ -254,10 +254,10 @@ def fig_timing_speedup(timing_path):
         s = d.get("serial_ms")
         r = d.get("rayon_ms")
         m = d.get("metal_ms")
-        if s is None or r is None or s == 0:
+        if s is None or r is None or s == 0 or r == 0:
             continue
         names.append(name)
-        n_samples.append(d["n_samples"])
+        n_samples.append(d.get("n_samples", 0))
         speedup_rayon.append(s / r)
         speedup_metal.append((s / m) if (m and m != 0) else None)
 
@@ -410,8 +410,9 @@ def main():
             print(f"    {algo_names[i]} vs {algo_names[j]}: |{avg_ranks[i]:.2f} - {avg_ranks[j]:.2f}| = {diff:.2f} → {sig}")
 
     # Wilcoxon signed-rank test: SOM-TSK vs KMeans++
+    km_col = algo_keys.index('kmeans')
     som_aris = ari_matrix[:, 0]
-    km_aris = ari_matrix[:, 1]
+    km_aris  = ari_matrix[:, km_col]
     diffs = som_aris - km_aris
     nonzero = diffs[diffs != 0]
     if len(nonzero) > 0:
@@ -460,7 +461,7 @@ def main():
     print(f"  V2 match: {'YES' if all_match else 'NO'}")
     print(f"  Friedman p-value: {p_value:.2e} ({'SIGNIFICANT' if p_value < 0.05 else 'not significant'})")
     print(f"  SOM-TSK avg rank: {avg_ranks[0]:.2f} (best=1.0)")
-    print(f"  KMeans++ avg rank: {avg_ranks[1]:.2f}")
+    print(f"  KMeans++ avg rank: {avg_ranks[algo_keys.index('kmeans')]:.2f}")
     print(f"  Wilcoxon p (SOM vs KM): {wilcoxon_p:.4f}")
 
     # Multi-seed KMeans++ vs deterministic SOM-TSK comparison
@@ -483,6 +484,7 @@ def main():
     print(f"    {FIGS_DIR / 'delta_ari.pdf'}")
     print(f"    {FIGS_DIR / 'algorithm_comparison.pdf'}")
     print(f"    {FIGS_DIR / 'friedman_nemenyi.pdf'}")
+    print(f"    {FIGS_DIR / 'timing_speedup.pdf'} (if timing_comparison.json present)")
     print("=" * 60)
 
 if __name__ == "__main__":
