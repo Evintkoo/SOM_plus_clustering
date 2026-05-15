@@ -5,17 +5,26 @@
 // The GPU training path is not numerically identical to the CPU path.
 
 use crate::{core::distance::DistanceFunction, SomError};
-use metal::{CommandQueue, ComputePipelineState, Device, MTLResourceOptions, MTLSize};
+use metal::{
+    CommandQueue, CompileOptions, ComputePipelineState, Device, MTLResourceOptions, MTLSize,
+};
 use ndarray::{Array2, ArrayView1, ArrayView2};
 use once_cell::sync::Lazy;
 
-static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/som_kernels.metallib"));
+// Embed MSL source and compile at runtime via Metal's JIT compiler.
+// No xcrun/Xcode needed — the Metal framework ships with macOS itself.
+const SHADER_SRC: &str = concat!(
+    include_str!("shaders/euclidean_distances.metal"),
+    "\n",
+    include_str!("shaders/neighborhood_update.metal"),
+);
 
 struct MetalState {
     device: Device,
     queue: CommandQueue,
     pipeline_euclidean: ComputePipelineState,
     pipeline_cosine: ComputePipelineState,
+    pipeline_neighborhood: ComputePipelineState,
 }
 
 // SAFETY: The metal crate wraps Objective-C objects that are safe to share across
@@ -27,7 +36,7 @@ unsafe impl Sync for MetalState {}
 static METAL_STATE: Lazy<Result<MetalState, String>> = Lazy::new(|| {
     let dev = Device::system_default().ok_or_else(|| "No Metal device found".to_string())?;
     let lib = dev
-        .new_library_with_data(METALLIB)
+        .new_library_with_source(SHADER_SRC, &CompileOptions::new())
         .map_err(|e| e.to_string())?;
     let fn_euclidean = lib
         .get_function("batch_euclidean", None)
@@ -35,11 +44,17 @@ static METAL_STATE: Lazy<Result<MetalState, String>> = Lazy::new(|| {
     let fn_cosine = lib
         .get_function("batch_cosine", None)
         .map_err(|e| e.to_string())?;
+    let fn_neighborhood = lib
+        .get_function("neighborhood_update", None)
+        .map_err(|e| e.to_string())?;
     let pipeline_euclidean = dev
         .new_compute_pipeline_state_with_function(&fn_euclidean)
         .map_err(|e| e.to_string())?;
     let pipeline_cosine = dev
         .new_compute_pipeline_state_with_function(&fn_cosine)
+        .map_err(|e| e.to_string())?;
+    let pipeline_neighborhood = dev
+        .new_compute_pipeline_state_with_function(&fn_neighborhood)
         .map_err(|e| e.to_string())?;
     let queue = dev.new_command_queue();
     Ok(MetalState {
@@ -47,6 +62,7 @@ static METAL_STATE: Lazy<Result<MetalState, String>> = Lazy::new(|| {
         queue,
         pipeline_euclidean,
         pipeline_cosine,
+        pipeline_neighborhood,
     })
 });
 
@@ -192,20 +208,16 @@ pub fn neighborhood_update(
         MTLResourceOptions::StorageModeShared,
     );
 
-    let lib = state.device.new_library_with_data(METALLIB).map_err(|e| SomError::BackendUnavailable(e.to_string()))?;
-    let fn_update = lib.get_function("neighborhood_update", None).map_err(|e| SomError::BackendUnavailable(e.to_string()))?;
-    let pipeline = state.device.new_compute_pipeline_state_with_function(&fn_update).map_err(|e| SomError::BackendUnavailable(e.to_string()))?;
-
     let cmd = state.queue.new_command_buffer();
     let enc = cmd.new_compute_command_encoder();
-    enc.set_compute_pipeline_state(&pipeline);
+    enc.set_compute_pipeline_state(&state.pipeline_neighborhood);
     enc.set_buffer(0, Some(&buf_neurons), 0);
     enc.set_buffer(1, Some(&buf_pt), 0);
     enc.set_buffer(2, Some(&buf_inf), 0);
     enc.set_buffer(3, Some(&buf_mn), 0);
     enc.set_buffer(4, Some(&buf_dim), 0);
 
-    let threads_per_group = pipeline.max_total_threads_per_threadgroup().min(256) as u64;
+    let threads_per_group = state.pipeline_neighborhood.max_total_threads_per_threadgroup().min(256) as u64;
     let grid = MTLSize { width: mn as u64, height: 1, depth: 1 };
     let group = MTLSize { width: threads_per_group, height: 1, depth: 1 };
     enc.dispatch_threads(grid, group);
