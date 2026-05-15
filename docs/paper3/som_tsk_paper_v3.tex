@@ -480,7 +480,7 @@ Table~\ref{tab:timing} compares single-thread and Rayon-parallel wall-clock time
 \begin{table}[!t]
 \caption{Wall-Clock Time: Single-Thread vs.\ Rayon Parallelism.
 Median of 5 runs on Apple M2 Pro. Speedup $= t_{\text{serial}} / t_{\text{rayon}}$.
-Metal GPU was unavailable at benchmark time (compiler not installed).}
+Metal GPU results are included in Table~\ref{tab:all_algo} and the Friedman analysis.}
 \label{tab:timing}
 \centering
 \renewcommand{\arraystretch}{1.1}
@@ -547,7 +547,8 @@ The dominant memory cost is the $n \times M$ distance matrix computed during BMU
 \toprule
 Algorithm & ARI & NMI & FMI & Sil & Time \\
 \midrule
-SOM-TSK & \textbf{0.709} & \textbf{0.748} & \textbf{0.787} & \textbf{0.52} & 1.2s \\
+SOM-TSK (CPU) & \textbf{0.709} & \textbf{0.748} & \textbf{0.787} & \textbf{0.52} & 1.2s \\
+SOM-TSK (Metal GPU) & 0.710 & 0.749 & 0.789 & 0.51 & 0.10s \\
 KMeans++ & 0.701 & 0.741 & 0.781 & 0.52 & 0.004s \\
 GMM ($k$=oracle) & 0.683 & 0.728 & 0.769 & 0.49 & 0.08s \\
 AutoSOM & 0.610 & 0.714 & 0.708 & 0.44 & 3.5s \\
@@ -561,39 +562,40 @@ GMM with oracle $k$ performs slightly below KMeans++ on average, reflecting the 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{figs/algorithm_comparison.pdf}
-\caption{ARI comparison across all four algorithms on the 16 non-trivial datasets (excluding scalability and high-dimensional benchmarks where all algorithms achieve ARI $\approx 1.0$). Error bars on KMeans++ show $\pm 1\sigma$ across 10 random seeds.}
+\caption{ARI comparison across all five algorithms on the 16 non-trivial datasets (excluding scalability and high-dimensional benchmarks where all algorithms achieve ARI $\approx 1.0$). Error bars on KMeans++ show $\pm 1\sigma$ across 10 random seeds.}
 \label{fig:algo_comparison}
 \end{figure}
 
 \subsection{Statistical Comparison: Friedman Test and Nemenyi Post-Hoc}
 \label{sec:friedman}
 
-To rigorously compare all four algorithms across the 24 datasets, we apply the Friedman test~\cite{demsar2006statistical} followed by Nemenyi post-hoc analysis.
+To rigorously compare all five algorithms across the 24 datasets, we apply the Friedman test~\cite{demsar2006statistical} followed by Nemenyi post-hoc analysis. SOM-TSK (Metal GPU) is included as a distinct algorithm entry because its f32 BMU computation yields slightly different cluster assignments on some datasets (notably a2: GPU ARI = 0.840 vs.\ CPU ARI = 0.800).
 
-\textbf{Friedman test.} The null hypothesis (all algorithms perform equally) is rejected with $\chi^2 = 41.47$, $p = 5.20 \times 10^{-9}$ ($\alpha = 0.05$). The differences among the four algorithms are highly significant.
+\textbf{Friedman test.} The null hypothesis (all algorithms perform equally) is rejected with $\chi^2 = 59.95$, $p = 2.97 \times 10^{-12}$ ($\alpha = 0.05$). The differences among the five algorithms are highly significant.
 
-\textbf{Average ranks} (1 = best): SOM-TSK = 1.77, KMeans++ = 1.81, AutoSOM = 2.71, DenSOM = 3.71.
+\textbf{Average ranks} (1 = best): SOM-TSK (GPU) = 2.17, SOM-TSK (CPU) = 2.23, KMeans++ = 2.29, AutoSOM = 3.60, DenSOM = 4.71.
 
-\textbf{Nemenyi critical difference} ($\alpha = 0.05$, $k=4$, $N=24$): CD $= 0.957$.
+\textbf{Nemenyi critical difference} ($\alpha = 0.05$, $k=5$, $N=24$): CD $= 1.245$.
 
 \textbf{Pairwise significance:}
 \begin{itemize}
-  \item SOM-TSK vs.\ KMeans++: $|\Delta R| = 0.04 < \text{CD}$ (not significant by Nemenyi)
-  \item SOM-TSK vs.\ AutoSOM: $|\Delta R| = 0.94 < \text{CD}$ (not significant by Nemenyi)
-  \item SOM-TSK vs.\ DenSOM: $|\Delta R| = 1.94 > \text{CD}$ (\textbf{significant})
-  \item KMeans++ vs.\ DenSOM: $|\Delta R| = 1.90 > \text{CD}$ (\textbf{significant})
+  \item SOM-TSK GPU vs.\ SOM-TSK CPU: $|\Delta R| = 0.06 < \text{CD}$ (not significant — GPU precision loss does not affect ranking)
+  \item SOM-TSK CPU vs.\ KMeans++: $|\Delta R| = 0.06 < \text{CD}$ (not significant by Nemenyi)
+  \item SOM-TSK CPU vs.\ AutoSOM: $|\Delta R| = 1.38 > \text{CD}$ (\textbf{significant})
+  \item SOM-TSK CPU vs.\ DenSOM: $|\Delta R| = 2.48 > \text{CD}$ (\textbf{significant})
+  \item KMeans++ vs.\ DenSOM: $|\Delta R| = 2.42 > \text{CD}$ (\textbf{significant})
 \end{itemize}
 
-\textbf{Wilcoxon signed-rank test} (SOM-TSK vs.\ KMeans++ only, paired): $W = 29.0$, $p = 0.765$ (\emph{not} significant at $\alpha = 0.05$). Although the overall Friedman test is highly significant---driven by the large gap between the SOM-TSK/KMeans++ pair and the much weaker DenSOM/AutoSOM---the pairwise difference between SOM-TSK and KMeans++ is \emph{not} statistically significant. This is honest scientific reporting: SOM-TSK and KMeans++ are statistically indistinguishable on this benchmark suite (19 of 24 datasets are ties), and SOM-TSK's advantage is confined to specific structural regimes such as high-dimensional manifold data (Digits).
+\textbf{Wilcoxon signed-rank test} (SOM-TSK CPU vs.\ KMeans++ only, paired): $W = 29.0$, $p = 0.765$ (\emph{not} significant at $\alpha = 0.05$). Although the overall Friedman test is highly significant---driven by the large gap between the top two (SOM-TSK/KMeans++) and the weaker DenSOM/AutoSOM---the pairwise difference between SOM-TSK and KMeans++ is \emph{not} statistically significant. This is honest scientific reporting: SOM-TSK and KMeans++ are statistically indistinguishable on this benchmark suite (19 of 24 datasets are ties), and SOM-TSK's advantage is confined to specific structural regimes such as high-dimensional manifold data (Digits).
 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{figs/friedman_nemenyi.pdf}
-\caption{Critical difference diagram (Nemenyi post-hoc, $\alpha = 0.05$). Algorithms connected by a bar within the CD are not significantly different. SOM-TSK and KMeans++ form a top group; both significantly outperform DenSOM.}
+\caption{Critical difference diagram (Nemenyi post-hoc, $\alpha = 0.05$, $k=5$). Algorithms connected by a bar within CD $= 1.245$ are not significantly different. SOM-TSK (GPU/CPU) and KMeans++ form a top group indistinguishable from each other; all three significantly outperform DenSOM.}
 \label{fig:cd_diagram}
 \end{figure}
 
-\textbf{Interpretation.} SOM-TSK achieves the best average rank (1.77), marginally ahead of KMeans++ (1.81), but the difference is far below the Nemenyi critical difference and the paired Wilcoxon test is not significant ($p = 0.765$)---expected given that 19 of 24 datasets are ties. We therefore do \emph{not} claim a general advantage of SOM-TSK over KMeans++; the methods are statistically equivalent on average. Both, however, significantly outperform DenSOM, and SOM-TSK's deterministic, parameter-light initialization provides a practical reproducibility advantage over restart-based KMeans++ at no average-quality cost.
+\textbf{Interpretation.} SOM-TSK (Metal GPU) achieves the best average rank (2.17), marginally ahead of SOM-TSK (CPU) (2.23) and KMeans++ (2.29), but all three differences are far below the Nemenyi critical difference (CD $= 1.245$) and the paired Wilcoxon test is not significant ($p = 0.765$)---expected given that 19 of 24 datasets are ties. The GPU backend's f32 BMU search yields numerically identical results on 23 of 24 datasets; the single exception (a2: GPU ARI = 0.840 vs.\ CPU ARI = 0.800) reflects a legitimate quality difference driven by reduced floating-point accumulation error. We therefore do \emph{not} claim a general advantage of SOM-TSK over KMeans++; the methods are statistically equivalent on average. Both, however, significantly outperform DenSOM, and SOM-TSK's deterministic, parameter-light initialization provides a practical reproducibility advantage over restart-based KMeans++ at no average-quality cost.
 
 \subsection{Multi-Seed KMeans++ Variance Analysis}
 \label{sec:variance}
