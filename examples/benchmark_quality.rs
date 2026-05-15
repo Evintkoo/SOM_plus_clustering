@@ -16,6 +16,8 @@ use som_plus_clustering::{
     AutoSomBuilder, DenSomBuilder, DistanceFunction, InitMethod, KMeansBuilder, KMeansInit,
     SomBuilder,
 };
+#[cfg(feature = "metal")]
+use som_plus_clustering::Backend;
 use std::{fs, io::Write, time::Instant};
 
 // ---------------------------------------------------------------------------
@@ -123,6 +125,57 @@ fn run_som(data: &Array2<f64>, m: usize, n: usize, k: usize, epochs: usize) -> (
         dunn = jf(dunn),
     );
     (labels.to_vec(), json)
+}
+
+#[cfg(feature = "metal")]
+fn run_som_metal(
+    data: &Array2<f64>,
+    m: usize,
+    n: usize,
+    k: usize,
+    epochs: usize,
+) -> Option<(Vec<usize>, String)> {
+    let dim = data.ncols();
+    let mut som = SomBuilder::new()
+        .grid(m, n)
+        .dim(dim)
+        .learning_rate(0.5)
+        .expect("valid lr")
+        .neighbor_radius(3.0)
+        .init_method(InitMethod::SomPlusPlus)
+        .distance(DistanceFunction::Euclidean)
+        .build();
+    som.set_backend(Backend::Metal);
+
+    let t0 = Instant::now();
+    if let Err(e) = som.fit(&data.view(), epochs, false, None) {
+        eprintln!("  [Metal] fit failed: {e}");
+        return None;
+    }
+    let fit_s = t0.elapsed().as_secs_f64();
+
+    let t0 = Instant::now();
+    let labels = match som.predict_clustered_refined(&data.view(), k) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("  [Metal] predict failed: {e}");
+            return None;
+        }
+    };
+    let predict_s = t0.elapsed().as_secs_f64();
+
+    let (sil, db, ch, dunn) = compute_metrics(data, &labels);
+    let json = format!(
+        r#"{{"fit_time_s":{fit:.4},"predict_time_s":{pred:.6},"n_neurons":{nn},"silhouette":{sil},"davies_bouldin":{db},"calinski_harabasz":{ch},"dunn":{dunn}}}"#,
+        fit  = fit_s,
+        pred = predict_s,
+        nn   = m * n,
+        sil  = jf(sil),
+        db   = jf(db),
+        ch   = jf(ch),
+        dunn = jf(dunn),
+    );
+    Some((labels.to_vec(), json))
 }
 
 fn run_kmeans(data: &Array2<f64>, k: usize) -> (Vec<usize>, String) {
@@ -277,6 +330,21 @@ fn main() {
         print!("SOM✓  ");
         let _ = std::io::stdout().flush();
 
+        // SOM Metal GPU (only compiled when --features metal)
+        #[cfg(feature = "metal")]
+        let som_gpu_result = run_som_metal(&data, m, n, k, epochs);
+        #[cfg(feature = "metal")]
+        if let Some((ref gpu_labels, _)) = som_gpu_result {
+            save_labels(&format!("{results_dir}/{name}_som_gpu_labels.csv"), gpu_labels);
+            print!("GPU✓  ");
+        } else {
+            print!("GPU✗  ");
+        }
+        #[cfg(feature = "metal")]
+        let _ = std::io::stdout().flush();
+        #[cfg(not(feature = "metal"))]
+        let som_gpu_result: Option<(Vec<usize>, String)> = None;
+
         // KMeans
         let (km_labels, km_json) = run_kmeans(&data, k);
         save_labels(&format!("{results_dir}/{name}_km_labels.csv"), &km_labels);
@@ -294,8 +362,13 @@ fn main() {
         save_labels_i32(&format!("{results_dir}/{name}_auto_labels.csv"), &auto_labels);
         println!("AutoSOM✓");
 
+        let gpu_json_field = match som_gpu_result {
+            Some((_, ref j)) => format!(r#","som_gpu":{j}"#),
+            None             => String::new(),
+        };
+
         entries.push(format!(
-            r#"  "{name}": {{"n_samples":{ns},"n_features":{nf},"n_true_clusters":{nc},"som_grid":"{m}x{n}","som":{som},"kmeans":{km},"densom":{densom},"autosom":{autosom}}}"#,
+            r#"  "{name}": {{"n_samples":{ns},"n_features":{nf},"n_true_clusters":{nc},"som_grid":"{m}x{n}","som":{som},"kmeans":{km},"densom":{densom},"autosom":{autosom}{gpu}}}"#,
             name    = name,
             ns      = data.nrows(),
             nf      = data.ncols(),
@@ -306,6 +379,7 @@ fn main() {
             km      = km_json,
             densom  = densom_json,
             autosom = auto_json,
+            gpu     = gpu_json_field,
         ));
     }
 
