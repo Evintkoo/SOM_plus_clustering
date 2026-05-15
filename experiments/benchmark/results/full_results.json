@@ -5,8 +5,8 @@
     "n_true_clusters": 15,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.8097,
-      "predict_time_s": 0.016364,
+      "fit_time_s": 0.0175,
+      "predict_time_s": 0.032113,
       "n_neurons": 64,
       "silhouette": 0.632107,
       "davies_bouldin": 0.470282,
@@ -18,8 +18,8 @@
       "v_measure": 0.9764
     },
     "kmeans": {
-      "fit_time_s": 0.0053,
-      "predict_time_s": 0.000113,
+      "fit_time_s": 0.0046,
+      "predict_time_s": 0.000127,
       "inertia": 168.3401,
       "silhouette": 0.632107,
       "davies_bouldin": 0.470282,
@@ -31,21 +31,21 @@
       "v_measure": 0.9764
     },
     "densom": {
-      "fit_time_s": 0.7869,
-      "n_clusters_found": 2,
-      "noise_count": 2804,
-      "noise_ratio": 0.5614,
-      "silhouette": -0.01057,
-      "davies_bouldin": 4.152747,
-      "calinski_harabasz": 285.124419,
-      "dunn": 0.000959,
-      "ari": 0.1068,
-      "nmi": 0.337,
-      "fmi": 0.3101,
-      "v_measure": 0.337
+      "fit_time_s": 0.0112,
+      "n_clusters_found": 3,
+      "noise_count": 2661,
+      "noise_ratio": 0.5327,
+      "silhouette": 0.001337,
+      "davies_bouldin": 6.698444,
+      "calinski_harabasz": 368.071119,
+      "dunn": 0.000897,
+      "ari": 0.1532,
+      "nmi": 0.4463,
+      "fmi": 0.3443,
+      "v_measure": 0.4463
     },
     "autosom": {
-      "fit_time_s": 3.5334,
+      "fit_time_s": 5.1818,
       "algorithm": "KMeans",
       "k_detected": 15,
       "n_clusters_found": 15,
@@ -59,6 +59,12 @@
       "nmi": 0.9764,
       "fmi": 0.9778,
       "v_measure": 0.9764
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "s2": {
@@ -67,21 +73,21 @@
     "n_true_clusters": 15,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.7778,
-      "predict_time_s": 0.055416,
+      "fit_time_s": 0.012,
+      "predict_time_s": 0.105848,
       "n_neurons": 64,
-      "silhouette": 0.366013,
-      "davies_bouldin": 0.869752,
-      "calinski_harabasz": 5889.764806,
-      "dunn": 0.008328,
-      "ari": 0.6074,
-      "nmi": 0.742,
-      "fmi": 0.6335,
-      "v_measure": 0.742
+      "silhouette": 0.37266,
+      "davies_bouldin": 0.849813,
+      "calinski_harabasz": 5708.325733,
+      "dunn": 0.005717,
+      "ari": 0.579,
+      "nmi": 0.7302,
+      "fmi": 0.6075,
+      "v_measure": 0.7302
     },
     "kmeans": {
-      "fit_time_s": 0.012,
-      "predict_time_s": 0.000124,
+      "fit_time_s": 0.0171,
+      "predict_time_s": 0.000218,
       "inertia": 592.8859,
       "silhouette": 0.362719,
       "davies_bouldin": 0.884844,
@@ -93,34 +99,40 @@
       "v_measure": 0.7352
     },
     "densom": {
-      "fit_time_s": 0.7824,
-      "n_clusters_found": 1,
-      "noise_count": 2220,
-      "noise_ratio": 0.4444,
-      "silhouette": 0.095566,
-      "davies_bouldin": 27.502718,
-      "calinski_harabasz": 6.052781,
-      "dunn": 0.001041,
-      "ari": 0.0424,
-      "nmi": 0.1164,
-      "fmi": 0.2419,
-      "v_measure": 0.1164
+      "fit_time_s": 0.0105,
+      "n_clusters_found": 4,
+      "noise_count": 2341,
+      "noise_ratio": 0.4687,
+      "silhouette": -0.058294,
+      "davies_bouldin": 2.712302,
+      "calinski_harabasz": 377.403258,
+      "dunn": 0.001264,
+      "ari": 0.0894,
+      "nmi": 0.3062,
+      "fmi": 0.2437,
+      "v_measure": 0.3062
     },
     "autosom": {
-      "fit_time_s": 3.713,
+      "fit_time_s": 5.6047,
       "algorithm": "KMeans",
-      "k_detected": 11,
-      "n_clusters_found": 11,
+      "k_detected": 9,
+      "n_clusters_found": 9,
       "noise_count": 0,
       "noise_ratio": 0.0,
-      "silhouette": 0.401437,
-      "davies_bouldin": 0.779404,
-      "calinski_harabasz": 5555.073719,
-      "dunn": 0.006078,
-      "ari": 0.5471,
-      "nmi": 0.7271,
-      "fmi": 0.5928,
-      "v_measure": 0.7271
+      "silhouette": 0.425252,
+      "davies_bouldin": 0.696643,
+      "calinski_harabasz": 5911.699887,
+      "dunn": 0.003236,
+      "ari": 0.5252,
+      "nmi": 0.7177,
+      "fmi": 0.5834,
+      "v_measure": 0.7177
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "s3": {
@@ -129,21 +141,21 @@
     "n_true_clusters": 15,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.834,
-      "predict_time_s": 0.095729,
+      "fit_time_s": 0.0122,
+      "predict_time_s": 0.229239,
       "n_neurons": 64,
-      "silhouette": 0.331075,
-      "davies_bouldin": 0.849609,
-      "calinski_harabasz": 4035.466724,
-      "dunn": 0.004538,
-      "ari": 0.3178,
-      "nmi": 0.53,
-      "fmi": 0.3635,
-      "v_measure": 0.53
+      "silhouette": 0.332419,
+      "davies_bouldin": 0.833045,
+      "calinski_harabasz": 4058.733728,
+      "dunn": 0.00246,
+      "ari": 0.3186,
+      "nmi": 0.5308,
+      "fmi": 0.3642,
+      "v_measure": 0.5308
     },
     "kmeans": {
-      "fit_time_s": 0.021,
-      "predict_time_s": 0.000138,
+      "fit_time_s": 0.0318,
+      "predict_time_s": 0.000205,
       "inertia": 813.5021,
       "silhouette": 0.330142,
       "davies_bouldin": 0.850117,
@@ -155,34 +167,40 @@
       "v_measure": 0.5281
     },
     "densom": {
-      "fit_time_s": 0.8001,
-      "n_clusters_found": 2,
-      "noise_count": 1913,
-      "noise_ratio": 0.383,
-      "silhouette": 0.043156,
-      "davies_bouldin": 7.040231,
-      "calinski_harabasz": 252.672205,
-      "dunn": 0.001792,
-      "ari": 0.0612,
-      "nmi": 0.1756,
-      "fmi": 0.2277,
-      "v_measure": 0.1756
+      "fit_time_s": 0.0108,
+      "n_clusters_found": 1,
+      "noise_count": 1853,
+      "noise_ratio": 0.371,
+      "silhouette": 0.140278,
+      "davies_bouldin": 14.679177,
+      "calinski_harabasz": 21.609648,
+      "dunn": 0.002024,
+      "ari": 0.0237,
+      "nmi": 0.0712,
+      "fmi": 0.2216,
+      "v_measure": 0.0712
     },
     "autosom": {
-      "fit_time_s": 4.0616,
+      "fit_time_s": 5.7478,
       "algorithm": "KMeans",
-      "k_detected": 5,
-      "n_clusters_found": 5,
+      "k_detected": 6,
+      "n_clusters_found": 6,
       "noise_count": 0,
       "noise_ratio": 0.0,
-      "silhouette": 0.368906,
-      "davies_bouldin": 0.857592,
-      "calinski_harabasz": 4117.482639,
-      "dunn": 0.003013,
-      "ari": 0.2641,
-      "nmi": 0.4812,
-      "fmi": 0.3906,
-      "v_measure": 0.4812
+      "silhouette": 0.361194,
+      "davies_bouldin": 0.853823,
+      "calinski_harabasz": 4062.170907,
+      "dunn": 0.003063,
+      "ari": 0.3006,
+      "nmi": 0.5065,
+      "fmi": 0.408,
+      "v_measure": 0.5065
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "s4": {
@@ -191,21 +209,21 @@
     "n_true_clusters": 15,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.8016,
-      "predict_time_s": 0.084044,
+      "fit_time_s": 0.0145,
+      "predict_time_s": 0.171348,
       "n_neurons": 64,
-      "silhouette": 0.323759,
-      "davies_bouldin": 0.837075,
-      "calinski_harabasz": 3543.808817,
-      "dunn": 0.003235,
-      "ari": 0.1886,
-      "nmi": 0.3973,
-      "fmi": 0.2436,
-      "v_measure": 0.3973
+      "silhouette": 0.326547,
+      "davies_bouldin": 0.835412,
+      "calinski_harabasz": 3543.972343,
+      "dunn": 0.004882,
+      "ari": 0.1859,
+      "nmi": 0.3956,
+      "fmi": 0.2413,
+      "v_measure": 0.3956
     },
     "kmeans": {
-      "fit_time_s": 0.0242,
-      "predict_time_s": 0.000144,
+      "fit_time_s": 0.0373,
+      "predict_time_s": 0.000139,
       "inertia": 911.2873,
       "silhouette": 0.323759,
       "davies_bouldin": 0.837075,
@@ -217,21 +235,21 @@
       "v_measure": 0.3973
     },
     "densom": {
-      "fit_time_s": 0.8164,
+      "fit_time_s": 0.0111,
       "n_clusters_found": 1,
-      "noise_count": 1888,
-      "noise_ratio": 0.378,
-      "silhouette": 0.15087,
-      "davies_bouldin": 87.515368,
-      "calinski_harabasz": 0.602891,
-      "dunn": 0.002569,
-      "ari": 0.0143,
-      "nmi": 0.0416,
+      "noise_count": 1867,
+      "noise_ratio": 0.3738,
+      "silhouette": 0.15203,
+      "davies_bouldin": 63.131515,
+      "calinski_harabasz": 1.158735,
+      "dunn": 0.001112,
+      "ari": 0.0139,
+      "nmi": 0.0415,
       "fmi": 0.2076,
-      "v_measure": 0.0416
+      "v_measure": 0.0415
     },
     "autosom": {
-      "fit_time_s": 4.0862,
+      "fit_time_s": 5.8256,
       "algorithm": "KMeans",
       "k_detected": 4,
       "n_clusters_found": 4,
@@ -245,6 +263,12 @@
       "nmi": 0.3658,
       "fmi": 0.3259,
       "v_measure": 0.3658
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "a1": {
@@ -253,8 +277,8 @@
     "n_true_clusters": 20,
     "som_grid": "9x9",
     "som": {
-      "fit_time_s": 0.5361,
-      "predict_time_s": 0.013977,
+      "fit_time_s": 0.0115,
+      "predict_time_s": 0.019835,
       "n_neurons": 81,
       "silhouette": 0.61841,
       "davies_bouldin": 0.482489,
@@ -266,8 +290,8 @@
       "v_measure": 0.98
     },
     "kmeans": {
-      "fit_time_s": 0.0038,
-      "predict_time_s": 7.5e-05,
+      "fit_time_s": 0.0033,
+      "predict_time_s": 0.000112,
       "inertia": 107.6896,
       "silhouette": 0.61841,
       "davies_bouldin": 0.482489,
@@ -279,34 +303,40 @@
       "v_measure": 0.98
     },
     "densom": {
-      "fit_time_s": 0.5387,
-      "n_clusters_found": 3,
-      "noise_count": 1682,
-      "noise_ratio": 0.5607,
-      "silhouette": -0.076451,
-      "davies_bouldin": 3.031968,
-      "calinski_harabasz": 143.685141,
-      "dunn": 0.000518,
-      "ari": 0.0983,
-      "nmi": 0.3831,
-      "fmi": 0.28,
-      "v_measure": 0.3831
+      "fit_time_s": 0.0082,
+      "n_clusters_found": 4,
+      "noise_count": 1614,
+      "noise_ratio": 0.538,
+      "silhouette": -0.082801,
+      "davies_bouldin": 2.549116,
+      "calinski_harabasz": 166.886737,
+      "dunn": 0.001739,
+      "ari": 0.124,
+      "nmi": 0.4549,
+      "fmi": 0.3016,
+      "v_measure": 0.4549
     },
     "autosom": {
-      "fit_time_s": 5.4954,
+      "fit_time_s": 8.2798,
       "algorithm": "KMeans",
-      "k_detected": 21,
-      "n_clusters_found": 21,
+      "k_detected": 20,
+      "n_clusters_found": 20,
       "noise_count": 0,
       "noise_ratio": 0.0,
-      "silhouette": 0.605615,
-      "davies_bouldin": 0.541815,
-      "calinski_harabasz": 8339.809225,
-      "dunn": 0.009315,
-      "ari": 0.9642,
-      "nmi": 0.9744,
-      "fmi": 0.966,
-      "v_measure": 0.9744
+      "silhouette": 0.61841,
+      "davies_bouldin": 0.482489,
+      "calinski_harabasz": 8581.726484,
+      "dunn": 0.038065,
+      "ari": 0.977,
+      "nmi": 0.98,
+      "fmi": 0.9781,
+      "v_measure": 0.98
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "a2": {
@@ -315,21 +345,21 @@
     "n_true_clusters": 35,
     "som_grid": "12x12",
     "som": {
-      "fit_time_s": 1.1568,
-      "predict_time_s": 0.057396,
+      "fit_time_s": 0.0214,
+      "predict_time_s": 0.093834,
       "n_neurons": 144,
-      "silhouette": 0.464857,
-      "davies_bouldin": 0.615358,
-      "calinski_harabasz": 7818.900917,
-      "dunn": 0.008852,
-      "ari": 0.8409,
-      "nmi": 0.8966,
-      "fmi": 0.8454,
-      "v_measure": 0.8966
+      "silhouette": 0.44597,
+      "davies_bouldin": 0.665987,
+      "calinski_harabasz": 7280.666458,
+      "dunn": 0.016537,
+      "ari": 0.8001,
+      "nmi": 0.882,
+      "fmi": 0.8058,
+      "v_measure": 0.882
     },
     "kmeans": {
-      "fit_time_s": 0.0138,
-      "predict_time_s": 0.000213,
+      "fit_time_s": 0.012,
+      "predict_time_s": 0.00019,
       "inertia": 216.6403,
       "silhouette": 0.44597,
       "davies_bouldin": 0.665987,
@@ -341,34 +371,40 @@
       "v_measure": 0.882
     },
     "densom": {
-      "fit_time_s": 1.1142,
-      "n_clusters_found": 1,
-      "noise_count": 2189,
-      "noise_ratio": 0.417,
-      "silhouette": 0.109355,
-      "davies_bouldin": 41.565368,
-      "calinski_harabasz": 2.854586,
-      "dunn": 0.001669,
-      "ari": 0.0333,
-      "nmi": 0.1914,
-      "fmi": 0.1915,
-      "v_measure": 0.1914
+      "fit_time_s": 0.016,
+      "n_clusters_found": 4,
+      "noise_count": 2140,
+      "noise_ratio": 0.4076,
+      "silhouette": 0.043132,
+      "davies_bouldin": 2.271022,
+      "calinski_harabasz": 668.547217,
+      "dunn": 0.001891,
+      "ari": 0.1016,
+      "nmi": 0.4235,
+      "fmi": 0.2453,
+      "v_measure": 0.4235
     },
     "autosom": {
-      "fit_time_s": 10.2207,
+      "fit_time_s": 14.1263,
       "algorithm": "KMeans",
-      "k_detected": 34,
-      "n_clusters_found": 34,
+      "k_detected": 39,
+      "n_clusters_found": 39,
       "noise_count": 0,
       "noise_ratio": 0.0,
-      "silhouette": 0.455635,
-      "davies_bouldin": 0.634258,
-      "calinski_harabasz": 7427.213254,
-      "dunn": 0.016537,
-      "ari": 0.8092,
-      "nmi": 0.8853,
-      "fmi": 0.8148,
-      "v_measure": 0.8853
+      "silhouette": 0.439895,
+      "davies_bouldin": 0.705072,
+      "calinski_harabasz": 7404.685954,
+      "dunn": 0.018471,
+      "ari": 0.8036,
+      "nmi": 0.883,
+      "fmi": 0.8095,
+      "v_measure": 0.883
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "a3": {
@@ -377,21 +413,21 @@
     "n_true_clusters": 50,
     "som_grid": "15x15",
     "som": {
-      "fit_time_s": 2.0081,
-      "predict_time_s": 0.293807,
+      "fit_time_s": 0.0364,
+      "predict_time_s": 0.475995,
       "n_neurons": 225,
-      "silhouette": 0.35846,
-      "davies_bouldin": 0.803759,
-      "calinski_harabasz": 8316.234727,
-      "dunn": 0.009968,
-      "ari": 0.5944,
-      "nmi": 0.794,
-      "fmi": 0.6026,
-      "v_measure": 0.794
+      "silhouette": 0.358613,
+      "davies_bouldin": 0.803169,
+      "calinski_harabasz": 8251.638322,
+      "dunn": 0.004696,
+      "ari": 0.583,
+      "nmi": 0.7894,
+      "fmi": 0.5914,
+      "v_measure": 0.7894
     },
     "kmeans": {
-      "fit_time_s": 0.0543,
-      "predict_time_s": 0.000393,
+      "fit_time_s": 0.07,
+      "predict_time_s": 0.000294,
       "inertia": 273.5047,
       "silhouette": 0.357659,
       "davies_bouldin": 0.805305,
@@ -403,34 +439,40 @@
       "v_measure": 0.7907
     },
     "densom": {
-      "fit_time_s": 1.9404,
+      "fit_time_s": 0.0349,
       "n_clusters_found": 1,
-      "noise_count": 3511,
-      "noise_ratio": 0.4681,
-      "silhouette": 0.102435,
-      "davies_bouldin": 10.096862,
-      "calinski_harabasz": 65.896107,
-      "dunn": 0.001871,
-      "ari": 0.0288,
-      "nmi": 0.2073,
-      "fmi": 0.1722,
-      "v_measure": 0.2073
+      "noise_count": 3017,
+      "noise_ratio": 0.4023,
+      "silhouette": 0.125083,
+      "davies_bouldin": 10.983396,
+      "calinski_harabasz": 57.814684,
+      "dunn": 0.001738,
+      "ari": 0.0243,
+      "nmi": 0.1834,
+      "fmi": 0.1634,
+      "v_measure": 0.1834
     },
     "autosom": {
-      "fit_time_s": 13.0345,
-      "algorithm": "KMeans",
-      "k_detected": 40,
-      "n_clusters_found": 40,
-      "noise_count": 0,
-      "noise_ratio": 0.0,
-      "silhouette": 0.36722,
-      "davies_bouldin": 0.751089,
-      "calinski_harabasz": 8296.613915,
-      "dunn": 0.011821,
-      "ari": 0.5491,
-      "nmi": 0.7826,
-      "fmi": 0.5631,
-      "v_measure": 0.7826
+      "fit_time_s": 15.0995,
+      "algorithm": "DenSOM",
+      "k_detected": 41,
+      "n_clusters_found": 4,
+      "noise_count": 1208,
+      "noise_ratio": 0.1611,
+      "silhouette": 0.259837,
+      "davies_bouldin": 1.836729,
+      "calinski_harabasz": 2926.696996,
+      "dunn": 0.00131,
+      "ari": 0.1031,
+      "nmi": 0.4515,
+      "fmi": 0.2425,
+      "v_measure": 0.4515
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "moons": {
@@ -439,8 +481,8 @@
     "n_true_clusters": 2,
     "som_grid": "5x5",
     "som": {
-      "fit_time_s": 0.0544,
-      "predict_time_s": 0.000711,
+      "fit_time_s": 0.0019,
+      "predict_time_s": 0.005001,
       "n_neurons": 25,
       "silhouette": 0.49363,
       "davies_bouldin": 0.805568,
@@ -452,8 +494,8 @@
       "v_measure": 0.3819
     },
     "kmeans": {
-      "fit_time_s": 0.0001,
-      "predict_time_s": 3e-06,
+      "fit_time_s": 0.0007,
+      "predict_time_s": 5.8e-05,
       "inertia": 250.9258,
       "silhouette": 0.49363,
       "davies_bouldin": 0.805568,
@@ -465,21 +507,21 @@
       "v_measure": 0.3819
     },
     "densom": {
-      "fit_time_s": 0.0644,
-      "n_clusters_found": 5,
-      "noise_count": 22,
-      "noise_ratio": 0.0733,
-      "silhouette": 0.320433,
-      "davies_bouldin": 1.611825,
-      "calinski_harabasz": 231.078001,
-      "dunn": 0.011968,
-      "ari": 0.2415,
-      "nmi": 0.3584,
-      "fmi": 0.5065,
-      "v_measure": 0.3584
+      "fit_time_s": 0.0005,
+      "n_clusters_found": 6,
+      "noise_count": 2,
+      "noise_ratio": 0.0067,
+      "silhouette": 0.298931,
+      "davies_bouldin": 0.863871,
+      "calinski_harabasz": 252.921973,
+      "dunn": 0.007388,
+      "ari": 0.2026,
+      "nmi": 0.3531,
+      "fmi": 0.4649,
+      "v_measure": 0.3531
     },
     "autosom": {
-      "fit_time_s": 0.1581,
+      "fit_time_s": 0.4737,
       "algorithm": "KMeans",
       "k_detected": 12,
       "n_clusters_found": 12,
@@ -493,6 +535,12 @@
       "nmi": 0.4405,
       "fmi": 0.4143,
       "v_measure": 0.4405
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "circles": {
@@ -501,21 +549,21 @@
     "n_true_clusters": 2,
     "som_grid": "5x5",
     "som": {
-      "fit_time_s": 0.0665,
-      "predict_time_s": 0.000893,
+      "fit_time_s": 0.0016,
+      "predict_time_s": 0.005049,
       "n_neurons": 25,
-      "silhouette": 0.32777,
-      "davies_bouldin": 1.22011,
-      "calinski_harabasz": 158.989649,
-      "dunn": 0.028496,
-      "ari": -0.0033,
+      "silhouette": 0.324278,
+      "davies_bouldin": 1.230156,
+      "calinski_harabasz": 156.474409,
+      "dunn": 0.017043,
+      "ari": -0.0034,
       "nmi": 0.0,
       "fmi": 0.4967,
       "v_measure": 0.0
     },
     "kmeans": {
-      "fit_time_s": 0.0001,
-      "predict_time_s": 3e-06,
+      "fit_time_s": 0.0005,
+      "predict_time_s": 5.1e-05,
       "inertia": 395.0184,
       "silhouette": 0.322394,
       "davies_bouldin": 1.237461,
@@ -527,21 +575,21 @@
       "v_measure": 0.0001
     },
     "densom": {
-      "fit_time_s": 0.0664,
-      "n_clusters_found": 2,
-      "noise_count": 139,
-      "noise_ratio": 0.4633,
-      "silhouette": -0.028772,
-      "davies_bouldin": 7.860219,
-      "calinski_harabasz": 5.887964,
-      "dunn": 0.015428,
-      "ari": 0.6684,
-      "nmi": 0.6479,
-      "fmi": 0.8204,
-      "v_measure": 0.6479
+      "fit_time_s": 0.0005,
+      "n_clusters_found": 3,
+      "noise_count": 137,
+      "noise_ratio": 0.4567,
+      "silhouette": 0.0045,
+      "davies_bouldin": 3.737026,
+      "calinski_harabasz": 14.237949,
+      "dunn": 0.024086,
+      "ari": 0.5642,
+      "nmi": 0.5911,
+      "fmi": 0.7525,
+      "v_measure": 0.5911
     },
     "autosom": {
-      "fit_time_s": 0.1511,
+      "fit_time_s": 0.4702,
       "algorithm": "KMeans",
       "k_detected": 12,
       "n_clusters_found": 12,
@@ -555,6 +603,12 @@
       "nmi": 0.4448,
       "fmi": 0.4276,
       "v_measure": 0.4448
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "spiral": {
@@ -563,21 +617,21 @@
     "n_true_clusters": 3,
     "som_grid": "5x5",
     "som": {
-      "fit_time_s": 0.0606,
-      "predict_time_s": 0.001308,
+      "fit_time_s": 0.0012,
+      "predict_time_s": 0.011167,
       "n_neurons": 25,
-      "silhouette": 0.305423,
-      "davies_bouldin": 1.020764,
-      "calinski_harabasz": 171.552342,
-      "dunn": 0.018013,
-      "ari": 0.0213,
-      "nmi": 0.0255,
-      "fmi": 0.3487,
-      "v_measure": 0.0255
+      "silhouette": 0.319258,
+      "davies_bouldin": 1.009219,
+      "calinski_harabasz": 172.004912,
+      "dunn": 0.018056,
+      "ari": 0.0163,
+      "nmi": 0.0202,
+      "fmi": 0.3531,
+      "v_measure": 0.0202
     },
     "kmeans": {
-      "fit_time_s": 0.0001,
-      "predict_time_s": 3e-06,
+      "fit_time_s": 0.0008,
+      "predict_time_s": 2.7e-05,
       "inertia": 278.4976,
       "silhouette": 0.303145,
       "davies_bouldin": 1.01515,
@@ -589,21 +643,21 @@
       "v_measure": 0.0232
     },
     "densom": {
-      "fit_time_s": 0.0622,
+      "fit_time_s": 0.0005,
       "n_clusters_found": 1,
-      "noise_count": 166,
-      "noise_ratio": 0.5533,
-      "silhouette": 0.100861,
-      "davies_bouldin": 6.440524,
-      "calinski_harabasz": 4.97684,
-      "dunn": 0.017562,
-      "ari": 0.0045,
-      "nmi": 0.0077,
-      "fmi": 0.4113,
-      "v_measure": 0.0077
+      "noise_count": 171,
+      "noise_ratio": 0.57,
+      "silhouette": 0.108216,
+      "davies_bouldin": 6.499423,
+      "calinski_harabasz": 4.624031,
+      "dunn": 0.01438,
+      "ari": -0.0022,
+      "nmi": 0.0018,
+      "fmi": 0.4088,
+      "v_measure": 0.0018
     },
     "autosom": {
-      "fit_time_s": 0.1391,
+      "fit_time_s": 0.4227,
       "algorithm": "KMeans",
       "k_detected": 2,
       "n_clusters_found": 2,
@@ -617,6 +671,12 @@
       "nmi": 0.0153,
       "fmi": 0.4162,
       "v_measure": 0.0153
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "anisotropic": {
@@ -625,8 +685,8 @@
     "n_true_clusters": 3,
     "som_grid": "5x5",
     "som": {
-      "fit_time_s": 0.0656,
-      "predict_time_s": 0.00081,
+      "fit_time_s": 0.0016,
+      "predict_time_s": 0.004322,
       "n_neurons": 25,
       "silhouette": 0.73988,
       "davies_bouldin": 0.374972,
@@ -638,8 +698,8 @@
       "v_measure": 1.0
     },
     "kmeans": {
-      "fit_time_s": 0.0001,
-      "predict_time_s": 4e-06,
+      "fit_time_s": 0.0007,
+      "predict_time_s": 2.5e-05,
       "inertia": 27.4538,
       "silhouette": 0.73988,
       "davies_bouldin": 0.374972,
@@ -651,34 +711,40 @@
       "v_measure": 1.0
     },
     "densom": {
-      "fit_time_s": 0.0655,
+      "fit_time_s": 0.0005,
       "n_clusters_found": 4,
-      "noise_count": 40,
-      "noise_ratio": 0.1333,
-      "silhouette": 0.481845,
-      "davies_bouldin": 1.189215,
-      "calinski_harabasz": 587.506399,
-      "dunn": 0.009884,
-      "ari": 0.6956,
-      "nmi": 0.7377,
-      "fmi": 0.7914,
-      "v_measure": 0.7377
+      "noise_count": 67,
+      "noise_ratio": 0.2233,
+      "silhouette": 0.321859,
+      "davies_bouldin": 1.36609,
+      "calinski_harabasz": 258.971184,
+      "dunn": 0.005783,
+      "ari": 0.606,
+      "nmi": 0.6764,
+      "fmi": 0.7248,
+      "v_measure": 0.6764
     },
     "autosom": {
-      "fit_time_s": 0.1526,
-      "algorithm": "DenSOM",
+      "fit_time_s": 0.446,
+      "algorithm": "KMeans",
       "k_detected": 12,
-      "n_clusters_found": 5,
-      "noise_count": 28,
-      "noise_ratio": 0.0933,
-      "silhouette": 0.449129,
-      "davies_bouldin": 1.435705,
-      "calinski_harabasz": 628.544898,
-      "dunn": 0.004225,
-      "ari": 0.6498,
-      "nmi": 0.718,
-      "fmi": 0.7601,
-      "v_measure": 0.718
+      "n_clusters_found": 12,
+      "noise_count": 0,
+      "noise_ratio": 0.0,
+      "silhouette": 0.498753,
+      "davies_bouldin": 0.593662,
+      "calinski_harabasz": 4257.027615,
+      "dunn": 0.040098,
+      "ari": 0.3811,
+      "nmi": 0.6438,
+      "fmi": 0.5614,
+      "v_measure": 0.6438
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "varied_density": {
@@ -687,8 +753,8 @@
     "n_true_clusters": 3,
     "som_grid": "5x5",
     "som": {
-      "fit_time_s": 0.2217,
-      "predict_time_s": 0.0026,
+      "fit_time_s": 0.0025,
+      "predict_time_s": 0.009721,
       "n_neurons": 25,
       "silhouette": 0.453179,
       "davies_bouldin": 0.750903,
@@ -700,8 +766,8 @@
       "v_measure": 0.5572
     },
     "kmeans": {
-      "fit_time_s": 0.0005,
-      "predict_time_s": 1.2e-05,
+      "fit_time_s": 0.0016,
+      "predict_time_s": 3.4e-05,
       "inertia": 680.6695,
       "silhouette": 0.452888,
       "davies_bouldin": 0.749651,
@@ -713,21 +779,21 @@
       "v_measure": 0.5571
     },
     "densom": {
-      "fit_time_s": 0.2185,
-      "n_clusters_found": 2,
-      "noise_count": 430,
-      "noise_ratio": 0.43,
-      "silhouette": 0.110596,
-      "davies_bouldin": 5.526775,
-      "calinski_harabasz": 211.976003,
-      "dunn": 0.004491,
-      "ari": 0.3355,
-      "nmi": 0.41,
-      "fmi": 0.6095,
-      "v_measure": 0.41
+      "fit_time_s": 0.0016,
+      "n_clusters_found": 1,
+      "noise_count": 422,
+      "noise_ratio": 0.422,
+      "silhouette": 0.227806,
+      "davies_bouldin": 1.964488,
+      "calinski_harabasz": 211.160212,
+      "dunn": 0.004621,
+      "ari": 0.1179,
+      "nmi": 0.1866,
+      "fmi": 0.5458,
+      "v_measure": 0.1866
     },
     "autosom": {
-      "fit_time_s": 0.4991,
+      "fit_time_s": 0.8874,
       "algorithm": "KMeans",
       "k_detected": 5,
       "n_clusters_found": 5,
@@ -741,6 +807,12 @@
       "nmi": 0.6219,
       "fmi": 0.6449,
       "v_measure": 0.6219
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "iris": {
@@ -749,21 +821,21 @@
     "n_true_clusters": 3,
     "som_grid": "5x5",
     "som": {
-      "fit_time_s": 0.0293,
-      "predict_time_s": 0.000651,
+      "fit_time_s": 0.001,
+      "predict_time_s": 0.003819,
       "n_neurons": 25,
-      "silhouette": 0.456634,
-      "davies_bouldin": 0.832277,
-      "calinski_harabasz": 241.315561,
-      "dunn": 0.057276,
-      "ari": 0.641,
-      "nmi": 0.6728,
-      "fmi": 0.7591,
-      "v_measure": 0.6728
+      "silhouette": 0.459948,
+      "davies_bouldin": 0.833595,
+      "calinski_harabasz": 241.904402,
+      "dunn": 0.026497,
+      "ari": 0.6201,
+      "nmi": 0.6595,
+      "fmi": 0.7452,
+      "v_measure": 0.6595
     },
     "kmeans": {
-      "fit_time_s": 0.0001,
-      "predict_time_s": 2e-06,
+      "fit_time_s": 0.0009,
+      "predict_time_s": 1.4e-05,
       "inertia": 140.9015,
       "silhouette": 0.456535,
       "davies_bouldin": 0.827512,
@@ -775,21 +847,21 @@
       "v_measure": 0.6613
     },
     "densom": {
-      "fit_time_s": 0.0302,
-      "n_clusters_found": 3,
-      "noise_count": 16,
-      "noise_ratio": 0.1067,
-      "silhouette": 0.157072,
-      "davies_bouldin": 4.127315,
-      "calinski_harabasz": 99.724395,
-      "dunn": 0.036371,
-      "ari": 0.4205,
-      "nmi": 0.5838,
-      "fmi": 0.6276,
-      "v_measure": 0.5838
+      "fit_time_s": 0.0003,
+      "n_clusters_found": 2,
+      "noise_count": 50,
+      "noise_ratio": 0.3333,
+      "silhouette": 0.398855,
+      "davies_bouldin": 0.950722,
+      "calinski_harabasz": 198.262216,
+      "dunn": 0.07253,
+      "ari": 0.5525,
+      "nmi": 0.5895,
+      "fmi": 0.6998,
+      "v_measure": 0.5895
     },
     "autosom": {
-      "fit_time_s": 0.0785,
+      "fit_time_s": 0.3227,
       "algorithm": "KMeans",
       "k_detected": 12,
       "n_clusters_found": 12,
@@ -803,6 +875,12 @@
       "nmi": 0.5577,
       "fmi": 0.5133,
       "v_measure": 0.5577
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "wine": {
@@ -811,8 +889,8 @@
     "n_true_clusters": 3,
     "som_grid": "5x5",
     "som": {
-      "fit_time_s": 0.0423,
-      "predict_time_s": 0.003447,
+      "fit_time_s": 0.0013,
+      "predict_time_s": 0.007841,
       "n_neurons": 25,
       "silhouette": 0.284859,
       "davies_bouldin": 1.389188,
@@ -824,8 +902,8 @@
       "v_measure": 0.8759
     },
     "kmeans": {
-      "fit_time_s": 0.0001,
-      "predict_time_s": 2e-06,
+      "fit_time_s": 0.001,
+      "predict_time_s": 2.4e-05,
       "inertia": 1279.9662,
       "silhouette": 0.284421,
       "davies_bouldin": 1.393801,
@@ -837,34 +915,40 @@
       "v_measure": 0.8609
     },
     "densom": {
-      "fit_time_s": 0.0422,
+      "fit_time_s": 0.0004,
       "n_clusters_found": 3,
-      "noise_count": 10,
-      "noise_ratio": 0.0562,
-      "silhouette": 0.256782,
-      "davies_bouldin": 1.83498,
-      "calinski_harabasz": 49.27267,
-      "dunn": 0.159518,
-      "ari": 0.7379,
-      "nmi": 0.7296,
-      "fmi": 0.8227,
-      "v_measure": 0.7296
+      "noise_count": 24,
+      "noise_ratio": 0.1348,
+      "silhouette": 0.184969,
+      "davies_bouldin": 1.915346,
+      "calinski_harabasz": 41.792016,
+      "dunn": 0.168031,
+      "ari": 0.754,
+      "nmi": 0.7181,
+      "fmi": 0.8345,
+      "v_measure": 0.7181
     },
     "autosom": {
-      "fit_time_s": 0.0865,
+      "fit_time_s": 0.3076,
       "algorithm": "DenSOM",
       "k_detected": 11,
-      "n_clusters_found": 4,
-      "noise_count": 33,
-      "noise_ratio": 0.1854,
-      "silhouette": 0.131321,
-      "davies_bouldin": 2.031434,
-      "calinski_harabasz": 33.79562,
-      "dunn": 0.160636,
-      "ari": 0.339,
-      "nmi": 0.45,
-      "fmi": 0.5267,
-      "v_measure": 0.45
+      "n_clusters_found": 5,
+      "noise_count": 31,
+      "noise_ratio": 0.1742,
+      "silhouette": 0.158487,
+      "davies_bouldin": 2.351902,
+      "calinski_harabasz": 32.267033,
+      "dunn": 0.172265,
+      "ari": 0.5853,
+      "nmi": 0.643,
+      "fmi": 0.7121,
+      "v_measure": 0.643
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "breast_cancer": {
@@ -873,21 +957,21 @@
     "n_true_clusters": 2,
     "som_grid": "6x6",
     "som": {
-      "fit_time_s": 0.1748,
-      "predict_time_s": 0.011883,
+      "fit_time_s": 0.0043,
+      "predict_time_s": 0.018557,
       "n_neurons": 36,
-      "silhouette": 0.344734,
-      "davies_bouldin": 1.309289,
-      "calinski_harabasz": 267.680436,
+      "silhouette": 0.343382,
+      "davies_bouldin": 1.32051,
+      "calinski_harabasz": 267.691716,
       "dunn": 0.060763,
-      "ari": 0.6765,
-      "nmi": 0.562,
-      "fmi": 0.8527,
-      "v_measure": 0.562
+      "ari": 0.6536,
+      "nmi": 0.5324,
+      "fmi": 0.841,
+      "v_measure": 0.5324
     },
     "kmeans": {
-      "fit_time_s": 0.0004,
-      "predict_time_s": 1.2e-05,
+      "fit_time_s": 0.0019,
+      "predict_time_s": 5.1e-05,
       "inertia": 11595.6833,
       "silhouette": 0.344734,
       "davies_bouldin": 1.309289,
@@ -899,21 +983,21 @@
       "v_measure": 0.562
     },
     "densom": {
-      "fit_time_s": 0.1718,
+      "fit_time_s": 0.0023,
       "n_clusters_found": 1,
-      "noise_count": 212,
-      "noise_ratio": 0.3726,
-      "silhouette": 0.183425,
-      "davies_bouldin": 2.622616,
-      "calinski_harabasz": 71.87508,
-      "dunn": 0.038227,
-      "ari": 0.1099,
-      "nmi": 0.0648,
-      "fmi": 0.5831,
-      "v_measure": 0.0648
+      "noise_count": 222,
+      "noise_ratio": 0.3902,
+      "silhouette": 0.149199,
+      "davies_bouldin": 2.985091,
+      "calinski_harabasz": 54.870236,
+      "dunn": 0.048353,
+      "ari": 0.1157,
+      "nmi": 0.0711,
+      "fmi": 0.5821,
+      "v_measure": 0.0711
     },
     "autosom": {
-      "fit_time_s": 0.6847,
+      "fit_time_s": 1.6549,
       "algorithm": "KMeans",
       "k_detected": 18,
       "n_clusters_found": 18,
@@ -927,6 +1011,12 @@
       "nmi": 0.3488,
       "fmi": 0.4268,
       "v_measure": 0.3488
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "digits": {
@@ -935,21 +1025,21 @@
     "n_true_clusters": 10,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.209,
-      "predict_time_s": 0.03964,
+      "fit_time_s": 0.006,
+      "predict_time_s": 0.041905,
       "n_neurons": 64,
-      "silhouette": 0.174156,
-      "davies_bouldin": 1.812871,
-      "calinski_harabasz": 42.30113,
-      "dunn": 0.092132,
-      "ari": 0.5795,
-      "nmi": 0.7416,
-      "fmi": 0.6269,
-      "v_measure": 0.7416
+      "silhouette": 0.173703,
+      "davies_bouldin": 1.800628,
+      "calinski_harabasz": 42.309261,
+      "dunn": 0.109773,
+      "ari": 0.5535,
+      "nmi": 0.735,
+      "fmi": 0.6045,
+      "v_measure": 0.735
     },
     "kmeans": {
-      "fit_time_s": 0.0018,
-      "predict_time_s": 3.3e-05,
+      "fit_time_s": 0.0104,
+      "predict_time_s": 7e-05,
       "inertia": 17428.1518,
       "silhouette": 0.145809,
       "davies_bouldin": 1.417018,
@@ -961,21 +1051,21 @@
       "v_measure": 0.54
     },
     "densom": {
-      "fit_time_s": 0.1865,
-      "n_clusters_found": 3,
-      "noise_count": 213,
-      "noise_ratio": 0.426,
-      "silhouette": 0.026423,
-      "davies_bouldin": 4.071508,
-      "calinski_harabasz": 21.946868,
-      "dunn": 0.103555,
-      "ari": 0.1793,
-      "nmi": 0.3901,
-      "fmi": 0.3504,
-      "v_measure": 0.3901
+      "fit_time_s": 0.0047,
+      "n_clusters_found": 2,
+      "noise_count": 298,
+      "noise_ratio": 0.596,
+      "silhouette": -0.016721,
+      "davies_bouldin": 4.482556,
+      "calinski_harabasz": 12.593272,
+      "dunn": 0.093577,
+      "ari": 0.1083,
+      "nmi": 0.2727,
+      "fmi": 0.325,
+      "v_measure": 0.2727
     },
     "autosom": {
-      "fit_time_s": 1.0413,
+      "fit_time_s": 3.398,
       "algorithm": "KMeans",
       "k_detected": 32,
       "n_clusters_found": 32,
@@ -989,6 +1079,12 @@
       "nmi": 0.7655,
       "fmi": 0.6429,
       "v_measure": 0.7655
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "scale_1k": {
@@ -997,8 +1093,8 @@
     "n_true_clusters": 5,
     "som_grid": "10x10",
     "som": {
-      "fit_time_s": 0.3878,
-      "predict_time_s": 0.003733,
+      "fit_time_s": 0.0072,
+      "predict_time_s": 0.006307,
       "n_neurons": 100,
       "silhouette": 0.735256,
       "davies_bouldin": 0.366845,
@@ -1010,8 +1106,8 @@
       "v_measure": 0.9733
     },
     "kmeans": {
-      "fit_time_s": 0.0005,
-      "predict_time_s": 1.6e-05,
+      "fit_time_s": 0.0013,
+      "predict_time_s": 0.000136,
       "inertia": 42.5246,
       "silhouette": 0.735256,
       "davies_bouldin": 0.366845,
@@ -1023,21 +1119,21 @@
       "v_measure": 0.9733
     },
     "densom": {
-      "fit_time_s": 0.3771,
+      "fit_time_s": 0.0036,
       "n_clusters_found": 4,
-      "noise_count": 432,
-      "noise_ratio": 0.432,
-      "silhouette": 0.077825,
-      "davies_bouldin": 1.260491,
-      "calinski_harabasz": 242.317142,
-      "dunn": 0.001976,
-      "ari": 0.2825,
-      "nmi": 0.4869,
-      "fmi": 0.4624,
-      "v_measure": 0.4869
+      "noise_count": 502,
+      "noise_ratio": 0.502,
+      "silhouette": -0.055663,
+      "davies_bouldin": 1.495553,
+      "calinski_harabasz": 168.593773,
+      "dunn": 0.001061,
+      "ari": 0.1801,
+      "nmi": 0.4089,
+      "fmi": 0.3977,
+      "v_measure": 0.4089
     },
     "autosom": {
-      "fit_time_s": 9.1701,
+      "fit_time_s": 14.0859,
       "algorithm": "KMeans",
       "k_detected": 5,
       "n_clusters_found": 5,
@@ -1051,6 +1147,12 @@
       "nmi": 0.9733,
       "fmi": 0.9823,
       "v_measure": 0.9733
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "scale_5k": {
@@ -1059,8 +1161,8 @@
     "n_true_clusters": 5,
     "som_grid": "10x10",
     "som": {
-      "fit_time_s": 0.9486,
-      "predict_time_s": 0.015002,
+      "fit_time_s": 0.0177,
+      "predict_time_s": 0.018576,
       "n_neurons": 100,
       "silhouette": 0.729824,
       "davies_bouldin": 0.376705,
@@ -1072,8 +1174,8 @@
       "v_measure": 0.9782
     },
     "kmeans": {
-      "fit_time_s": 0.0026,
-      "predict_time_s": 8.5e-05,
+      "fit_time_s": 0.0021,
+      "predict_time_s": 0.000146,
       "inertia": 219.3631,
       "silhouette": 0.729824,
       "davies_bouldin": 0.376705,
@@ -1085,21 +1187,21 @@
       "v_measure": 0.9782
     },
     "densom": {
-      "fit_time_s": 0.9162,
+      "fit_time_s": 0.0126,
       "n_clusters_found": 4,
-      "noise_count": 2231,
-      "noise_ratio": 0.4462,
-      "silhouette": -0.002522,
-      "davies_bouldin": 1.429085,
-      "calinski_harabasz": 1097.572589,
-      "dunn": 0.000902,
-      "ari": 0.24,
-      "nmi": 0.4458,
-      "fmi": 0.4315,
-      "v_measure": 0.4458
+      "noise_count": 2600,
+      "noise_ratio": 0.52,
+      "silhouette": -0.12893,
+      "davies_bouldin": 1.754027,
+      "calinski_harabasz": 754.901327,
+      "dunn": 0.000291,
+      "ari": 0.2204,
+      "nmi": 0.4091,
+      "fmi": 0.4392,
+      "v_measure": 0.4091
     },
     "autosom": {
-      "fit_time_s": 17.509,
+      "fit_time_s": 19.7645,
       "algorithm": "KMeans",
       "k_detected": 5,
       "n_clusters_found": 5,
@@ -1113,6 +1215,12 @@
       "nmi": 0.9782,
       "fmi": 0.9862,
       "v_measure": 0.9782
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "scale_10k": {
@@ -1121,8 +1229,8 @@
     "n_true_clusters": 5,
     "som_grid": "10x10",
     "som": {
-      "fit_time_s": 1.9534,
-      "predict_time_s": 0.024104,
+      "fit_time_s": 0.0284,
+      "predict_time_s": 0.024435,
       "n_neurons": 100,
       "silhouette": null,
       "davies_bouldin": 0.377955,
@@ -1134,8 +1242,8 @@
       "v_measure": 0.9766
     },
     "kmeans": {
-      "fit_time_s": 0.0055,
-      "predict_time_s": 0.00017,
+      "fit_time_s": 0.0034,
+      "predict_time_s": 0.000166,
       "inertia": 437.5241,
       "silhouette": null,
       "davies_bouldin": 0.377955,
@@ -1147,21 +1255,21 @@
       "v_measure": 0.9766
     },
     "densom": {
-      "fit_time_s": 1.8844,
+      "fit_time_s": 0.0226,
       "n_clusters_found": 4,
-      "noise_count": 4039,
-      "noise_ratio": 0.4039,
+      "noise_count": 4373,
+      "noise_ratio": 0.4373,
       "silhouette": null,
-      "davies_bouldin": 1.724546,
-      "calinski_harabasz": 2590.999812,
+      "davies_bouldin": 1.633828,
+      "calinski_harabasz": 1996.646251,
       "dunn": null,
-      "ari": 0.2673,
-      "nmi": 0.4787,
-      "fmi": 0.4395,
-      "v_measure": 0.4787
+      "ari": 0.2458,
+      "nmi": 0.451,
+      "fmi": 0.4306,
+      "v_measure": 0.451
     },
     "autosom": {
-      "fit_time_s": 18.8224,
+      "fit_time_s": 20.9136,
       "algorithm": "KMeans",
       "k_detected": 5,
       "n_clusters_found": 5,
@@ -1175,6 +1283,12 @@
       "nmi": 0.9766,
       "fmi": 0.9851,
       "v_measure": 0.9766
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "scale_50k": {
@@ -1183,8 +1297,8 @@
     "n_true_clusters": 5,
     "som_grid": "10x10",
     "som": {
-      "fit_time_s": 9.7886,
-      "predict_time_s": 0.206045,
+      "fit_time_s": 0.103,
+      "predict_time_s": 0.136047,
       "n_neurons": 100,
       "silhouette": null,
       "davies_bouldin": 0.378571,
@@ -1196,8 +1310,8 @@
       "v_measure": 0.9793
     },
     "kmeans": {
-      "fit_time_s": 0.0332,
-      "predict_time_s": 0.000843,
+      "fit_time_s": 0.0113,
+      "predict_time_s": 0.000511,
       "inertia": 2191.4,
       "silhouette": null,
       "davies_bouldin": 0.378571,
@@ -1209,21 +1323,21 @@
       "v_measure": 0.9793
     },
     "densom": {
-      "fit_time_s": 9.4859,
+      "fit_time_s": 0.1099,
       "n_clusters_found": 4,
-      "noise_count": 13686,
-      "noise_ratio": 0.2737,
+      "noise_count": 13989,
+      "noise_ratio": 0.2798,
       "silhouette": null,
-      "davies_bouldin": 1.522262,
-      "calinski_harabasz": 20028.477139,
+      "davies_bouldin": 1.728,
+      "calinski_harabasz": 16275.761903,
       "dunn": null,
-      "ari": 0.4464,
-      "nmi": 0.5926,
-      "fmi": 0.5663,
-      "v_measure": 0.5926
+      "ari": 0.3708,
+      "nmi": 0.5125,
+      "fmi": 0.5023,
+      "v_measure": 0.5125
     },
     "autosom": {
-      "fit_time_s": 26.357,
+      "fit_time_s": 22.3088,
       "algorithm": "KMeans",
       "k_detected": 5,
       "n_clusters_found": 5,
@@ -1237,6 +1351,12 @@
       "nmi": 0.9793,
       "fmi": 0.9871,
       "v_measure": 0.9793
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "dim_32": {
@@ -1245,8 +1365,8 @@
     "n_true_clusters": 5,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.3698,
-      "predict_time_s": 0.016633,
+      "fit_time_s": 0.0079,
+      "predict_time_s": 0.010906,
       "n_neurons": 64,
       "silhouette": 0.773309,
       "davies_bouldin": 0.328247,
@@ -1258,8 +1378,8 @@
       "v_measure": 1.0
     },
     "kmeans": {
-      "fit_time_s": 0.0006,
-      "predict_time_s": 3.4e-05,
+      "fit_time_s": 0.0012,
+      "predict_time_s": 0.000127,
       "inertia": 1772.3809,
       "silhouette": 0.773309,
       "davies_bouldin": 0.328247,
@@ -1271,34 +1391,40 @@
       "v_measure": 1.0
     },
     "densom": {
-      "fit_time_s": 0.3516,
+      "fit_time_s": 0.0058,
       "n_clusters_found": 5,
-      "noise_count": 359,
-      "noise_ratio": 0.359,
-      "silhouette": 0.218582,
-      "davies_bouldin": 1.255784,
-      "calinski_harabasz": 320.42055,
-      "dunn": 0.079892,
-      "ari": 0.4644,
-      "nmi": 0.6763,
-      "fmi": 0.5761,
-      "v_measure": 0.6763
+      "noise_count": 368,
+      "noise_ratio": 0.368,
+      "silhouette": 0.205858,
+      "davies_bouldin": 1.253706,
+      "calinski_harabasz": 305.641569,
+      "dunn": 0.07369,
+      "ari": 0.4539,
+      "nmi": 0.6712,
+      "fmi": 0.5692,
+      "v_measure": 0.6712
     },
     "autosom": {
-      "fit_time_s": 2.481,
+      "fit_time_s": 5.2784,
       "algorithm": "DenSOM",
       "k_detected": 28,
-      "n_clusters_found": 6,
-      "noise_count": 40,
-      "noise_ratio": 0.04,
-      "silhouette": 0.534577,
-      "davies_bouldin": 1.745095,
-      "calinski_harabasz": 1883.564484,
-      "dunn": 0.09673,
-      "ari": 0.8915,
-      "nmi": 0.9058,
-      "fmi": 0.9144,
-      "v_measure": 0.9058
+      "n_clusters_found": 7,
+      "noise_count": 33,
+      "noise_ratio": 0.033,
+      "silhouette": 0.426176,
+      "davies_bouldin": 2.310686,
+      "calinski_harabasz": 1684.195622,
+      "dunn": 0.097229,
+      "ari": 0.8484,
+      "nmi": 0.882,
+      "fmi": 0.8814,
+      "v_measure": 0.882
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "dim_64": {
@@ -1307,8 +1433,8 @@
     "n_true_clusters": 5,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.4067,
-      "predict_time_s": 0.022051,
+      "fit_time_s": 0.0104,
+      "predict_time_s": 0.016404,
       "n_neurons": 64,
       "silhouette": 0.767835,
       "davies_bouldin": 0.336745,
@@ -1320,8 +1446,8 @@
       "v_measure": 1.0
     },
     "kmeans": {
-      "fit_time_s": 0.0008,
-      "predict_time_s": 5.2e-05,
+      "fit_time_s": 0.0013,
+      "predict_time_s": 0.000133,
       "inertia": 3733.385,
       "silhouette": 0.767835,
       "davies_bouldin": 0.336745,
@@ -1333,34 +1459,40 @@
       "v_measure": 1.0
     },
     "densom": {
-      "fit_time_s": 0.425,
+      "fit_time_s": 0.0088,
       "n_clusters_found": 5,
-      "noise_count": 310,
-      "noise_ratio": 0.31,
-      "silhouette": 0.291957,
-      "davies_bouldin": 1.240608,
-      "calinski_harabasz": 430.399437,
-      "dunn": 0.106403,
-      "ari": 0.5341,
-      "nmi": 0.7109,
-      "fmi": 0.6261,
-      "v_measure": 0.7109
+      "noise_count": 158,
+      "noise_ratio": 0.158,
+      "silhouette": 0.522822,
+      "davies_bouldin": 1.282262,
+      "calinski_harabasz": 1047.432485,
+      "dunn": 0.12257,
+      "ari": 0.8189,
+      "nmi": 0.8504,
+      "fmi": 0.8546,
+      "v_measure": 0.8504
     },
     "autosom": {
-      "fit_time_s": 2.9558,
+      "fit_time_s": 6.6634,
       "algorithm": "DenSOM",
       "k_detected": 32,
       "n_clusters_found": 6,
-      "noise_count": 17,
-      "noise_ratio": 0.017,
-      "silhouette": 0.56873,
-      "davies_bouldin": 1.919943,
-      "calinski_harabasz": 2225.875664,
-      "dunn": 0.126991,
-      "ari": 0.9248,
-      "nmi": 0.9346,
-      "fmi": 0.9406,
-      "v_measure": 0.9346
+      "noise_count": 76,
+      "noise_ratio": 0.076,
+      "silhouette": 0.50386,
+      "davies_bouldin": 1.930677,
+      "calinski_harabasz": 1217.976263,
+      "dunn": 0.125372,
+      "ari": 0.8488,
+      "nmi": 0.8637,
+      "fmi": 0.8804,
+      "v_measure": 0.8637
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "dim_128": {
@@ -1369,8 +1501,8 @@
     "n_true_clusters": 5,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.4739,
-      "predict_time_s": 0.034492,
+      "fit_time_s": 0.0151,
+      "predict_time_s": 0.022048,
       "n_neurons": 64,
       "silhouette": 0.781257,
       "davies_bouldin": 0.315781,
@@ -1382,8 +1514,8 @@
       "v_measure": 1.0
     },
     "kmeans": {
-      "fit_time_s": 0.0012,
-      "predict_time_s": 0.000104,
+      "fit_time_s": 0.0022,
+      "predict_time_s": 0.000196,
       "inertia": 6815.7069,
       "silhouette": 0.781257,
       "davies_bouldin": 0.315781,
@@ -1395,34 +1527,40 @@
       "v_measure": 1.0
     },
     "densom": {
-      "fit_time_s": 0.4668,
+      "fit_time_s": 0.0142,
       "n_clusters_found": 5,
-      "noise_count": 277,
-      "noise_ratio": 0.277,
-      "silhouette": 0.343605,
-      "davies_bouldin": 1.24099,
-      "calinski_harabasz": 467.646396,
-      "dunn": 0.133929,
-      "ari": 0.5911,
-      "nmi": 0.7367,
-      "fmi": 0.67,
-      "v_measure": 0.7367
+      "noise_count": 246,
+      "noise_ratio": 0.246,
+      "silhouette": 0.389121,
+      "davies_bouldin": 1.253911,
+      "calinski_harabasz": 537.281844,
+      "dunn": 0.13485,
+      "ari": 0.6374,
+      "nmi": 0.7573,
+      "fmi": 0.7066,
+      "v_measure": 0.7573
     },
     "autosom": {
-      "fit_time_s": 3.895,
+      "fit_time_s": 8.8834,
       "algorithm": "DenSOM",
       "k_detected": 32,
-      "n_clusters_found": 6,
-      "noise_count": 6,
-      "noise_ratio": 0.006,
-      "silhouette": 0.48559,
-      "davies_bouldin": 2.517795,
-      "calinski_harabasz": 2976.236185,
-      "dunn": 0.480167,
-      "ari": 0.9352,
-      "nmi": 0.9546,
-      "fmi": 0.9487,
-      "v_measure": 0.9546
+      "n_clusters_found": 5,
+      "noise_count": 29,
+      "noise_ratio": 0.029,
+      "silhouette": 0.694485,
+      "davies_bouldin": 1.162489,
+      "calinski_harabasz": 2626.484152,
+      "dunn": 0.137197,
+      "ari": 0.9638,
+      "nmi": 0.9586,
+      "fmi": 0.9712,
+      "v_measure": 0.9586
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   },
   "dim_256": {
@@ -1431,8 +1569,8 @@
     "n_true_clusters": 5,
     "som_grid": "8x8",
     "som": {
-      "fit_time_s": 0.5199,
-      "predict_time_s": 0.050787,
+      "fit_time_s": 0.0246,
+      "predict_time_s": 0.036525,
       "n_neurons": 64,
       "silhouette": 0.791493,
       "davies_bouldin": 0.300265,
@@ -1444,8 +1582,8 @@
       "v_measure": 1.0
     },
     "kmeans": {
-      "fit_time_s": 0.0017,
-      "predict_time_s": 0.000178,
+      "fit_time_s": 0.0027,
+      "predict_time_s": 0.00024,
       "inertia": 12727.2998,
       "silhouette": 0.791493,
       "davies_bouldin": 0.300265,
@@ -1457,34 +1595,40 @@
       "v_measure": 1.0
     },
     "densom": {
-      "fit_time_s": 0.516,
+      "fit_time_s": 0.0245,
       "n_clusters_found": 5,
-      "noise_count": 290,
-      "noise_ratio": 0.29,
-      "silhouette": 0.325824,
-      "davies_bouldin": 1.225523,
-      "calinski_harabasz": 434.967818,
-      "dunn": 0.146475,
-      "ari": 0.5721,
-      "nmi": 0.7282,
-      "fmi": 0.6554,
-      "v_measure": 0.7282
+      "noise_count": 121,
+      "noise_ratio": 0.121,
+      "silhouette": 0.579395,
+      "davies_bouldin": 1.198065,
+      "calinski_harabasz": 1098.760944,
+      "dunn": 0.147106,
+      "ari": 0.8352,
+      "nmi": 0.8601,
+      "fmi": 0.8682,
+      "v_measure": 0.8601
     },
     "autosom": {
-      "fit_time_s": 5.3514,
+      "fit_time_s": 12.4523,
       "algorithm": "DenSOM",
       "k_detected": 32,
-      "n_clusters_found": 8,
-      "noise_count": 5,
-      "noise_ratio": 0.005,
-      "silhouette": 0.326447,
-      "davies_bouldin": 4.468258,
-      "calinski_harabasz": 2409.696094,
-      "dunn": 0.562912,
-      "ari": 0.8029,
-      "nmi": 0.8867,
-      "fmi": 0.8472,
-      "v_measure": 0.8867
+      "n_clusters_found": 6,
+      "noise_count": 25,
+      "noise_ratio": 0.025,
+      "silhouette": 0.591693,
+      "davies_bouldin": 2.476603,
+      "calinski_harabasz": 2351.298937,
+      "dunn": 0.153438,
+      "ari": 0.9251,
+      "nmi": 0.9319,
+      "fmi": 0.9408,
+      "v_measure": 0.9319
+    },
+    "som_gpu": {
+      "ari": null,
+      "nmi": null,
+      "fmi": null,
+      "v_measure": null
     }
   }
 }
