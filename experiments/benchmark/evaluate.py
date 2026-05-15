@@ -64,9 +64,13 @@ for name, cfg in configs.items():
     if os.path.exists(gpu_path):
         try:
             gpu_labels = pd.read_csv(gpu_path, header=None).values.flatten().astype(int)
+            if len(gpu_labels) != len(y_true):
+                raise ValueError(
+                    f"GPU label count {len(gpu_labels)} != ground truth {len(y_true)}"
+                )
             som_gpu_ext = ext_metrics(y_true, gpu_labels)
         except Exception as e:
-            print(f"  warn: GPU labels for {name} unreadable: {e}")
+            print(f"  warn: GPU labels for {name} unreadable or invalid: {e}")
             som_gpu_ext = {"ari": None, "nmi": None, "fmi": None, "v_measure": None}
     else:
         som_gpu_ext = {"ari": None, "nmi": None, "fmi": None, "v_measure": None}
