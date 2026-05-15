@@ -692,18 +692,18 @@ Based on our analysis, we propose the following decision framework:
 \end{algorithmic}
 \end{algorithm}
 
-\subsection{Quantifying the ``Never Worse'' Guarantee}
+\subsection{Quantifying the ``Rarely Worse'' Property}
 \label{sec:guarantee}
 
-SOM-TSK's 0-loss record is not coincidental---it is architecturally guaranteed by Phase C. Since Phase C runs a deterministic KMeans++ on raw data, the candidate pool always contains the KMeans++ solution. The inertia-windowed selection can only choose a different candidate if it has both (i) inertia within 5\% of the KMeans++ solution and (ii) higher CH score. This means:
+Phase C's topology-seeded KMeans refinement generally preserves cluster quality rather than guaranteeing it. Since Phase C runs a deterministic KMeans++ on raw data, the candidate pool always contains the KMeans++ solution. The inertia-windowed selection can only choose a different candidate if it has both (i) inertia within 5\% of the KMeans++ solution and (ii) higher CH score. This means:
 
 \begin{equation}
   \mathrm{ARI}(\text{SOM-TSK}) \ge \mathrm{ARI}(\text{KMeans++}) - \epsilon,
 \end{equation}
 
-where $\epsilon$ is bounded by the maximum ARI degradation possible within a 5\% inertia window. Empirically, $\epsilon < 0.005$ across all 24 datasets (the Iris ``loss'' of $-0.004$ is the worst case and falls within the tie threshold).
+where $\epsilon$ is bounded by the maximum ARI degradation possible within a 5\% inertia window. In the V3 multi-seed evaluation, worst-case degradation was $-0.025$ (Iris) and $-0.023$ (Breast Cancer), both attributable to multi-start variance in non-deterministic SOM-PlusPlus initialization rather than structural flaws in Phase C.
 
-This guarantee holds under two conditions: (i) Phase C uses the same KMeans++ implementation as the baseline, and (ii) the inertia window $\rho$ is not too large. For $\rho = 1.05$, the guarantee is robust; for $\rho > 1.15$, degenerate candidates could theoretically be selected.
+This bounding property is strongest under two conditions: (i) Phase C uses the same KMeans++ implementation as the baseline, and (ii) the inertia window $\rho$ is not too large. For $\rho = 1.05$, the bound is tight; for $\rho > 1.15$, degenerate candidates could theoretically be selected.
 
 \subsection{Sensitivity to SOM Hyperparameters}
 \label{sec:sensitivity}
@@ -955,7 +955,7 @@ This suggests a broader principle: \textbf{for clustering, integrated manifold-t
 
 SOM-TSK's full determinism (no RNG calls) is both a strength and a limitation. It enables exact reproducibility and eliminates the need for multi-run averaging, but it also means that a single SOM-TSK run cannot explore multiple topological configurations. In contrast, stochastic methods like multi-restart KMeans++ can occasionally find better solutions through lucky initialization.
 
-The empirical evidence suggests that determinism is net-positive: the structured exploration of the candidate pool (Phases A, A-alt, B-bis, C) provides more diverse candidates than random restarts, as evidenced by the 6-win/0-loss record. However, for very large $k$ ($> 100$), adding controlled stochasticity to Phase B-bis (e.g., random starting neurons beyond the top-3) might improve coverage.
+The empirical evidence suggests that determinism is net-positive: the structured exploration of the candidate pool (Phases A, A-alt, B-bis, C) provides more diverse candidates than random restarts, as evidenced by the 3-win/2-loss record under the V3 multi-seed protocol. However, for very large $k$ ($> 100$), adding controlled stochasticity to Phase B-bis (e.g., random starting neurons beyond the top-3) might improve coverage.
 
 \subsection{Practical Impact Assessment}
 
@@ -989,7 +989,7 @@ The scalability and high-dimensional benchmarks use well-separated Gaussians, wh
 
 \textbf{Conclusion validity.}
 The win/tie/loss threshold of $|\Delta\mathrm{ARI}| > 0.005$ is arbitrary.
-A stricter threshold (e.g., 0.01) would reclassify s3 ($\Delta = +0.007$) as a tie, reducing the win count to~5.
+A stricter threshold (e.g., 0.01) would reclassify s3 ($\Delta = +0.008$) as a tie, reducing the win count to~2.
 We mitigate this by reporting continuous effect sizes alongside discrete W/T/L counts.
 
 \subsection{Limitations}
