@@ -58,6 +58,21 @@ for name, cfg in configs.items():
 
     # DenSOM / AutoSOM labels include -1 for noise.  sklearn metrics treat -1
     # as its own cluster ID, so ARI/NMI still reflect cluster recovery quality.
+
+    # GPU labels (optional — only present when Metal feature was enabled at build time)
+    gpu_path = os.path.join(RES_DIR, f"{name}_som_gpu_labels.csv")
+    if os.path.exists(gpu_path):
+        try:
+            gpu_labels = pd.read_csv(gpu_path, header=None).values.flatten().astype(int)
+            som_gpu_ext = ext_metrics(y_true, gpu_labels)
+        except Exception as e:
+            print(f"  warn: GPU labels for {name} unreadable: {e}")
+            som_gpu_ext = {"ari": None, "nmi": None, "fmi": None, "v_measure": None}
+    else:
+        som_gpu_ext = {"ari": None, "nmi": None, "fmi": None, "v_measure": None}
+
+    som_gpu_internal = r.get("som_gpu", {})
+
     full[name] = {
         "n_samples":       r["n_samples"],
         "n_features":      r["n_features"],
@@ -67,6 +82,7 @@ for name, cfg in configs.items():
         "kmeans":  {**r["kmeans"],  **ext_metrics(y_true, km_labels)},
         "densom":  {**r["densom"],  **ext_metrics(y_true, densom_labels)},
         "autosom": {**r["autosom"], **ext_metrics(y_true, auto_labels)},
+        "som_gpu": {**som_gpu_internal, **som_gpu_ext},
     }
 
 out_path = os.path.join(RES_DIR, "full_results.json")
