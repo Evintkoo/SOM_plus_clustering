@@ -4,12 +4,14 @@
     "bmu-assignment": {
       "status": "done",
       "title": "Competitive Learning & BMU Assignment",
-      "description": "A grid of M = m×n neurons is trained via competitive learning, and each data point is assigned to its Best-Matching Unit, implicitly compressing cluster structure."
+      "description": "A grid of M = m×n neurons is trained via competitive learning, and each data point is assigned to its Best-Matching Unit, implicitly compressing cluster structure.",
+      "path": "src/core/som.rs"
     },
     "shrinking-kernel": {
       "status": "done",
       "title": "Shrinking Neighbourhood Kernel",
-      "description": "The kernel h_(c,j)(t) = exp(−‖r_c − r_j‖² / 2σ²(t)) shrinks over T epochs, giving the map its topology-preserving property."
+      "description": "The kernel h_(c,j)(t) = exp(−‖r_c − r_j‖² / 2σ²(t)) shrinks over T epochs, giving the map its topology-preserving property.",
+      "path": "src/core/neighborhood.rs"
     },
     "phase-a-a-alt-max-spread-greedy": {
       "status": "done",
@@ -29,12 +31,14 @@
     "densom": {
       "status": "done",
       "title": "DenSOM",
-      "description": "Extracts clusters directly from the SOM's hit-count map via Gaussian smoothing, Otsu thresholding, and watershed flood-fill, correctly recovering k on 8 of 24 datasets."
+      "description": "Extracts clusters directly from the SOM's hit-count map via Gaussian smoothing, Otsu thresholding, and watershed flood-fill, correctly recovering k on 8 of 24 datasets.",
+      "path": "src/core/densom.rs"
     },
     "autosom": {
       "status": "done",
       "title": "AutoSOM",
-      "description": "Fits a BIC-scored Gaussian Mixture Model to select k, then routes the job to SOM-TSK or <inode id=\"densom\">DenSOM</inode> based on silhouette score on a subsample."
+      "description": "Fits a BIC-scored Gaussian Mixture Model to select k, then routes the job to SOM-TSK or <inode id=\"densom\">DenSOM</inode> based on silhouette score on a subsample.",
+      "path": "src/core/autosom.rs"
     },
     "inertia-window": {
       "status": "done",
