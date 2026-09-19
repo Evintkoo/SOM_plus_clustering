@@ -1,0 +1,77 @@
+{
+  "status": "done",
+  "nodes": {
+    "kmeans-silhouette-check": {
+      "status": "done"
+    },
+    "fast-path-coverage": {
+      "status": "done"
+    },
+    "growing-neural-gas": {
+      "status": "done"
+    },
+    "graph-laplacian": {
+      "status": "done"
+    },
+    "eigengap-k-estimation": {
+      "status": "done"
+    },
+    "nystrom-extension": {
+      "status": "done"
+    },
+    "six-specialists": {
+      "status": "done"
+    },
+    "diagnostic-signals": {
+      "status": "done"
+    },
+    "case-based-routing": {
+      "status": "done"
+    },
+    "spectral-cluster-recovery": {
+      "status": "done"
+    },
+    "nystrom-error-bound": {
+      "status": "done"
+    },
+    "interlocking-rings-result": {
+      "status": "done"
+    },
+    "bmu-assignment": {
+      "status": "done"
+    },
+    "shrinking-kernel": {
+      "status": "done"
+    },
+    "phase-a-a-alt-max-spread-greedy": {
+      "status": "done"
+    },
+    "phase-b-bis-multi-start-coverage-aware-density": {
+      "status": "done"
+    },
+    "phase-c-deterministic-kmeans-baseline": {
+      "status": "done"
+    },
+    "densom": {
+      "status": "done"
+    },
+    "autosom": {
+      "status": "done"
+    },
+    "inertia-window": {
+      "status": "done"
+    },
+    "ch-maximization": {
+      "status": "done"
+    },
+    "zero-losses": {
+      "status": "done"
+    },
+    "scalability-11x-training-time": {
+      "status": "done"
+    },
+    "high-dimensional-robustness": {
+      "status": "done"
+    }
+  }
+}
