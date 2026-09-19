@@ -2,112 +2,184 @@
   "status": "done",
   "nodes": {
     "kmeans-silhouette-check": {
-      "status": "planned"
+      "status": "planned",
+      "title": "KMeans++ Silhouette Check",
+      "description": "On an 800-point subsample, two KMeans++ restarts test whether the mean silhouette exceeds 0.55; if so, all points are assigned by nearest-centroid immediately."
     },
     "fast-path-coverage": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Fast-Path Coverage",
+      "description": "This shortcut alone fully solves 16 of the 26 benchmark datasets in 2-22ms, letting GRASP skip the rest of the pipeline entirely."
     },
     "growing-neural-gas": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Growing Neural Gas",
+      "description": "Trains a GNG on up to 8000 points over 50 epochs; the Competitive Hebbian Learning theorem guarantees its edge set is a subgraph of the Delaunay triangulation of the neuron positions."
     },
     "graph-laplacian": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Graph Laplacian",
+      "description": "Builds a sparse affinity matrix from <inode id=\"growing-neural-gas\">the GNG's edge lengths</inode> (bandwidth set to their median) and computes the normalised Laplacian L = I - D^(-1/2) A D^(-1/2)."
     },
     "eigengap-k-estimation": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Eigengap k* Estimation",
+      "description": "Estimates the cluster count k* by maximising the normalised spectral gap between <inode id=\"graph-laplacian\">consecutive eigenvalues of the normalised Laplacian</inode>, a quantity that is robust to spectral scale by construction."
     },
     "nystrom-extension": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Nystrom Extension",
+      "description": "Embeds each point using the GNG's eigenvectors, cutting cost from full spectral clustering's O(n^2)/O(n^3) down to O(nmk) via landmarks that concentrate in proportion to data density."
     },
     "six-specialists": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Six Specialists",
+      "description": "Instantiates KMeans++, TopSOM, GNG-DenSom, WardAgglom, KnnSpectral, and RandNystrom, each suited to a different geometric regime from roughly Gaussian blobs to intertwined, non-convex shapes."
     },
     "diagnostic-signals": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Diagnostic Signals",
+      "description": "Combines the TopoSOM silhouette, the KMeans silhouette, and a spectral advantage score (the gap between them) to characterise the data's geometry."
     },
     "case-based-routing": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Case-Based Routing",
+      "description": "Encodes four routing cases: for example, high-confidence Gaussian data routes to KMeans, while a large spectral advantage with statistical significance routes to TopoSOM."
     },
     "spectral-cluster-recovery": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Spectral Cluster Recovery",
+      "description": "Proves that when true clusters are sufficiently separated and the GNG's mean edge length is small relative to that separation, the Laplacian has exactly k zero eigenvalues spanning an orthogonal cluster-indicator subspace."
     },
     "nystrom-error-bound": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Nystrom Error Bound",
+      "description": "Bounds the approximation error introduced by the Nystrom extension and shows it shrinks as <inode id=\"eigengap-k-estimation\">the spectral gap widens</inode>, precisely the regime where GRASP routes to TopoSOM."
     },
     "interlocking-rings-result": {
-      "status": "planned"
+      "status": "planned",
+      "title": "Interlocking Rings Result",
+      "description": "GRASP scores ARI 0.378 on the interlocking rings benchmark via <inode id=\"case-based-routing\">TopoSOM routing</inode>, a 14x improvement over DBSCAN's 0.000 and a 60% improvement over KnnSpectral's 0.234."
     },
     "bmu-assignment": {
-      "status": "done"
+      "status": "done",
+      "title": "Competitive Learning & BMU Assignment",
+      "description": "A grid of M = m\u00d7n neurons is trained via competitive learning, and each data point is assigned to its Best-Matching Unit, implicitly compressing cluster structure."
     },
     "shrinking-kernel": {
-      "status": "done"
+      "status": "done",
+      "title": "Shrinking Neighbourhood Kernel",
+      "description": "The kernel h_(c,j)(t) = exp(\u2212\u2016r_c \u2212 r_j\u2016\u00b2 / 2\u03c3\u00b2(t)) shrinks over T epochs, giving the map its topology-preserving property."
     },
     "phase-a-a-alt-max-spread-greedy": {
-      "status": "done"
+      "status": "done",
+      "title": "Phase A / A-alt: Max-Spread Greedy",
+      "description": "Greedily selects SOM neurons maximally distant from already-chosen centres, starting either from the highest hit-count neuron or the one farthest from the global centroid."
     },
     "phase-b-bis-multi-start-coverage-aware-density": {
-      "status": "done"
+      "status": "done",
+      "title": "Phase B-bis: Multi-Start Coverage-Aware Density",
+      "description": "Runs three independent density-based seedings from different starting neurons and keeps the best KMeans++ refinement, improving ARI by up to 0.20 over a single start."
     },
     "phase-c-deterministic-kmeans-baseline": {
-      "status": "done"
+      "status": "done",
+      "title": "Phase C: Deterministic KMeans++ Baseline",
+      "description": "A steady deterministic KMeans++ candidate is included in the pool as a baseline comparison point."
     },
     "densom": {
-      "status": "done"
+      "status": "done",
+      "title": "DenSOM",
+      "description": "Extracts clusters directly from the SOM's hit-count map via Gaussian smoothing, Otsu thresholding, and watershed flood-fill, correctly recovering k on 8 of 24 datasets."
     },
     "autosom": {
-      "status": "done"
+      "status": "done",
+      "title": "AutoSOM",
+      "description": "Fits a BIC-scored Gaussian Mixture Model to select k, then routes the job to SOM-TSK or <inode id=\"densom\">DenSOM</inode> based on silhouette score on a subsample."
     },
     "inertia-window": {
-      "status": "done"
+      "status": "done",
+      "title": "5% Inertia Window",
+      "description": "Candidates within 5% of the pool's minimum inertia remain eligible, wide enough to admit topologically superior but slightly less compact SOM-seeded candidates."
     },
     "ch-maximization": {
-      "status": "done"
+      "status": "done",
+      "title": "Calinski-Harabasz Maximization",
+      "description": "Among eligible candidates, the one maximizing the Calinski-Harabasz score is selected as the final partition."
     },
     "zero-losses": {
-      "status": "testing"
+      "status": "testing",
+      "title": "6 Wins, 18 Ties, 0 Losses",
+      "description": "SOM-TSK never falls more than 0.005 ARI below KMeans++ on any dataset, a margin secured by <inode id=\"ch-maximization\">the Calinski-Harabasz-maximizing selection rule</inode>, with a mean ARI improvement of +0.014 across all 24 datasets."
     },
     "scalability-11x-training-time": {
-      "status": "testing"
+      "status": "testing",
+      "title": "Scalability (~11x Training Time)",
+      "description": "At n = 1,000 to 50,000, SOM-TSK's training time scales as T\u00b7M\u00b7n \u2014 where M is <inode id=\"bmu-assignment\">the trained neuron grid's size</inode> \u2014 giving roughly an 11x training-time ratio versus cache-optimised KMeans++."
     },
     "high-dimensional-robustness": {
-      "status": "done"
+      "status": "done",
+      "title": "High-Dimensional Robustness",
+      "description": "Quality remains competitive through d = 256 dimensions when SOM grid size and epoch count are adjusted per dataset."
     },
     "competitive-learning-training": {
-      "status": "done"
+      "status": "done",
+      "title": "Competitive Learning Training",
+      "description": "Trains a SOM via batched best-matching-unit search and a separable Gaussian neighbourhood update, with GPU-fused BMU search on CUDA/Metal backends."
     },
     "supervised-som-classification": {
-      "status": "done"
+      "status": "done",
+      "title": "Supervised SOM Classification",
+      "description": "Wraps the unsupervised SOM to propagate labels through the trained grid, scored with accuracy and B-cubed precision/recall."
     },
     "11-initialization-strategies": {
-      "status": "done"
+      "status": "done",
+      "title": "11 Initialization Strategies",
+      "description": "Ships Random, KMeans, KMeans++, KDE-KMeans, SOM++, He, LeCun, NaiveSharding, LSUV, KDE-peak, and Zero initializers, each exercised by unit tests."
     },
     "automatic-model-picker": {
-      "status": "done"
+      "status": "done",
+      "title": "Automatic Model Picker",
+      "description": "Trains a SOM under every initialization method and ranks the results by silhouette score to pick the best one without manual tuning."
     },
     "kmeans-suite": {
-      "status": "done"
+      "status": "done",
+      "title": "KMeans Suite",
+      "description": "A from-scratch KMeans implementation with Hamerly's-bound-accelerated Lloyd iterations and reproducible seeded restarts."
     },
     "densom-density-clustering": {
-      "status": "testing"
+      "status": "testing",
+      "title": "DenSOM Density Clustering",
+      "description": "Extracts clusters directly from the SOM's smoothed hit-count map via Otsu thresholding and watershed flood-fill, without a fixed k."
     },
     "autosom-auto-k-routing": {
-      "status": "done"
+      "status": "done",
+      "title": "AutoSOM Auto-k Routing",
+      "description": "Picks k via a BIC-scored Gaussian Mixture Model and gap statistic, then routes the dataset to SOM-TSK, DenSOM, or GMM based on subsample silhouette."
     },
     "evaluation-metrics": {
-      "status": "done"
+      "status": "done",
+      "title": "Evaluation Metrics",
+      "description": "Silhouette, Davies-Bouldin, Calinski-Harabasz, Dunn, classification accuracy, and B-cubed precision/recall, all unit-tested."
     },
     "rayon-cpu-parallelism": {
-      "status": "done"
+      "status": "done",
+      "title": "Rayon CPU Parallelism",
+      "description": "Parallelizes BMU search, centroid updates, and inertia/silhouette computation, switching between serial and parallel per call based on problem size."
     },
     "metal-gpu-backend": {
-      "status": "done"
+      "status": "done",
+      "title": "Metal GPU Backend",
+      "description": "A macOS Metal compute backend for BMU search and neighbourhood updates, covered by its own CI job on macOS runners."
     },
     "cuda-gpu-backend": {
-      "status": "testing"
+      "status": "testing",
+      "title": "CUDA GPU Backend",
+      "description": "A CUDA compute backend behind a feature flag; CI currently only exercises the CPU and Metal paths, not real GPU hardware."
     },
     "bincode-json-serialization": {
-      "status": "done"
+      "status": "done",
+      "title": "Bincode/JSON Serialization",
+      "description": "Persists a trained SOM's full state via bincode by default, with optional JSON support behind a feature flag."
     }
   }
 }
