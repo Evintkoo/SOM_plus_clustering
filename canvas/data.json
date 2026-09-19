@@ -1,66 +1,6 @@
 {
   "status": "done",
   "nodes": {
-    "kmeans-silhouette-check": {
-      "status": "planned",
-      "title": "KMeans++ Silhouette Check",
-      "description": "On an 800-point subsample, two KMeans++ restarts test whether the mean silhouette exceeds 0.55; if so, all points are assigned by nearest-centroid immediately."
-    },
-    "fast-path-coverage": {
-      "status": "planned",
-      "title": "Fast-Path Coverage",
-      "description": "This shortcut alone fully solves 16 of the 26 benchmark datasets in 2-22ms, letting GRASP skip the rest of the pipeline entirely."
-    },
-    "growing-neural-gas": {
-      "status": "planned",
-      "title": "Growing Neural Gas",
-      "description": "Trains a GNG on up to 8000 points over 50 epochs; the Competitive Hebbian Learning theorem guarantees its edge set is a subgraph of the Delaunay triangulation of the neuron positions."
-    },
-    "graph-laplacian": {
-      "status": "planned",
-      "title": "Graph Laplacian",
-      "description": "Builds a sparse affinity matrix from <inode id=\"growing-neural-gas\">the GNG's edge lengths</inode> (bandwidth set to their median) and computes the normalised Laplacian L = I - D^(-1/2) A D^(-1/2)."
-    },
-    "eigengap-k-estimation": {
-      "status": "planned",
-      "title": "Eigengap k* Estimation",
-      "description": "Estimates the cluster count k* by maximising the normalised spectral gap between <inode id=\"graph-laplacian\">consecutive eigenvalues of the normalised Laplacian</inode>, a quantity that is robust to spectral scale by construction."
-    },
-    "nystrom-extension": {
-      "status": "planned",
-      "title": "Nystrom Extension",
-      "description": "Embeds each point using the GNG's eigenvectors, cutting cost from full spectral clustering's O(n^2)/O(n^3) down to O(nmk) via landmarks that concentrate in proportion to data density."
-    },
-    "six-specialists": {
-      "status": "planned",
-      "title": "Six Specialists",
-      "description": "Instantiates KMeans++, TopSOM, GNG-DenSom, WardAgglom, KnnSpectral, and RandNystrom, each suited to a different geometric regime from roughly Gaussian blobs to intertwined, non-convex shapes."
-    },
-    "diagnostic-signals": {
-      "status": "planned",
-      "title": "Diagnostic Signals",
-      "description": "Combines the TopoSOM silhouette, the KMeans silhouette, and a spectral advantage score (the gap between them) to characterise the data's geometry."
-    },
-    "case-based-routing": {
-      "status": "planned",
-      "title": "Case-Based Routing",
-      "description": "Encodes four routing cases: for example, high-confidence Gaussian data routes to KMeans, while a large spectral advantage with statistical significance routes to TopoSOM."
-    },
-    "spectral-cluster-recovery": {
-      "status": "planned",
-      "title": "Spectral Cluster Recovery",
-      "description": "Proves that when true clusters are sufficiently separated and the GNG's mean edge length is small relative to that separation, the Laplacian has exactly k zero eigenvalues spanning an orthogonal cluster-indicator subspace."
-    },
-    "nystrom-error-bound": {
-      "status": "planned",
-      "title": "Nystrom Error Bound",
-      "description": "Bounds the approximation error introduced by the Nystrom extension and shows it shrinks as <inode id=\"eigengap-k-estimation\">the spectral gap widens</inode>, precisely the regime where GRASP routes to TopoSOM."
-    },
-    "interlocking-rings-result": {
-      "status": "planned",
-      "title": "Interlocking Rings Result",
-      "description": "GRASP scores ARI 0.378 on the interlocking rings benchmark via <inode id=\"case-based-routing\">TopoSOM routing</inode>, a 14x improvement over DBSCAN's 0.000 and a 60% improvement over KnnSpectral's 0.234."
-    },
     "bmu-assignment": {
       "status": "done",
       "title": "Competitive Learning & BMU Assignment",
