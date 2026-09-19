@@ -2,40 +2,40 @@
   "status": "done",
   "nodes": {
     "kmeans-silhouette-check": {
-      "status": "done"
+      "status": "planned"
     },
     "fast-path-coverage": {
-      "status": "done"
+      "status": "planned"
     },
     "growing-neural-gas": {
-      "status": "done"
+      "status": "planned"
     },
     "graph-laplacian": {
-      "status": "done"
+      "status": "planned"
     },
     "eigengap-k-estimation": {
-      "status": "done"
+      "status": "planned"
     },
     "nystrom-extension": {
-      "status": "done"
+      "status": "planned"
     },
     "six-specialists": {
-      "status": "done"
+      "status": "planned"
     },
     "diagnostic-signals": {
-      "status": "done"
+      "status": "planned"
     },
     "case-based-routing": {
-      "status": "done"
+      "status": "planned"
     },
     "spectral-cluster-recovery": {
-      "status": "done"
+      "status": "planned"
     },
     "nystrom-error-bound": {
-      "status": "done"
+      "status": "planned"
     },
     "interlocking-rings-result": {
-      "status": "done"
+      "status": "planned"
     },
     "bmu-assignment": {
       "status": "done"
@@ -65,12 +65,48 @@
       "status": "done"
     },
     "zero-losses": {
-      "status": "done"
+      "status": "testing"
     },
     "scalability-11x-training-time": {
-      "status": "done"
+      "status": "testing"
     },
     "high-dimensional-robustness": {
+      "status": "done"
+    },
+    "competitive-learning-training": {
+      "status": "done"
+    },
+    "supervised-som-classification": {
+      "status": "done"
+    },
+    "11-initialization-strategies": {
+      "status": "done"
+    },
+    "automatic-model-picker": {
+      "status": "done"
+    },
+    "kmeans-suite": {
+      "status": "done"
+    },
+    "densom-density-clustering": {
+      "status": "testing"
+    },
+    "autosom-auto-k-routing": {
+      "status": "done"
+    },
+    "evaluation-metrics": {
+      "status": "done"
+    },
+    "rayon-cpu-parallelism": {
+      "status": "done"
+    },
+    "metal-gpu-backend": {
+      "status": "done"
+    },
+    "cuda-gpu-backend": {
+      "status": "testing"
+    },
+    "bincode-json-serialization": {
       "status": "done"
     }
   }
